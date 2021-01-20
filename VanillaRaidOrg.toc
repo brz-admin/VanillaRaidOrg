@@ -1,0 +1,9 @@
+## Interface: 11200
+## Title: Vanilla Raid Organiser
+## Version: 0.0.1
+## Notes: Save Raid Organisation and Load them 
+## Dependencies:
+## OptionalDeps:
+## SavedVariablesPerCharacter: VRO_SETS
+## SavedVariables: VRO_Members
+core.lua
