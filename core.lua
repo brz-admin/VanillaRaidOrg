@@ -15,6 +15,9 @@ tinsert = table.insert;
 GetRaidRosterInfo = GetRaidRosterInfo;
 SwapRaidSubgroup = SwapRaidSubgroup;
 
+local VRO_gui = {};
+VRO_gui.selected = nil;
+
 ---------- UTIL ----------
 local function dLog(msg, lvl, force)
 	force = force or false;
@@ -48,6 +51,56 @@ local function getKeyName(tab, key)
 		if k == key then return k end
 	end
 end
+
+--- Opts:
+---     name (string): Name of the dropdown (lowercase)
+---     parent (Frame): Parent frame of the dropdown.
+---     items (Table): String table of the dropdown options.
+---     defaultVal (String): String value for the dropdown to default to (empty otherwise).
+---     changeFunc (Function): A custom function to be called, after selecting a dropdown option.
+local function createDropdown(opts)
+    local dropdown_name = '$parent_' .. opts['name'] .. '_dropdown'
+    local menu_items = opts['items'] or {}
+    local title_text = opts['title'] or ''
+    local dropdown_width = 0
+    local default_val = opts['defaultVal'] or ''
+    local change_func = opts['changeFunc'] or function (dropdown_val) end
+
+    local dropdown = CreateFrame("Frame", dropdown_name, opts['parent'], 'UIDropDownMenuTemplate')
+    local dd_title = dropdown:CreateFontString(dropdown, 'OVERLAY', 'GameFontNormal')
+    dd_title:SetPoint("TOPLEFT", 20, 10)
+
+    for _, item in pairs(menu_items) do -- Sets the dropdown width to the largest item string width.
+        dd_title:SetText(item)
+        local text_width = dd_title:GetStringWidth() + 20
+        if text_width > dropdown_width then
+            dropdown_width = text_width
+        end
+    end
+
+    UIDropDownMenu_SetWidth(dropdown, dropdown_width)
+    UIDropDownMenu_SetText(dropdown, default_val)
+    dd_title:SetText(title_text)
+
+    UIDropDownMenu_Initialize(dropdown, function(self, level, _)
+        local info = UIDropDownMenu_CreateInfo()
+        for key, val in pairs(menu_items) do
+            info.text = val;
+            info.checked = false
+            info.menuList= key
+            info.hasArrow = false
+            info.func = function(b)
+                UIDropDownMenu_SetSelectedValue(dropdown, b.value, b.value)
+                UIDropDownMenu_SetText(dropdown, b.value)
+                b.checked = true
+                change_func(dropdown, b.value)
+            end
+            UIDropDownMenu_AddButton(info)
+        end
+    end)
+
+    return dropdown
+end
 --------------------------
 
 --------- FRAMES ---------
@@ -66,9 +119,9 @@ VRO_MainFrame:SetScript("OnDragStart", function() this:StartMoving() end);
 VRO_MainFrame:SetScript("OnDragStop", function() this:StopMovingOrSizing() end);
 
 VRO_MainFrame_Title = CreateFrame("Frame", "VRO_MainFrame_Title", VRO_MainFrame);
-VRO_MainFrame_Title:SetPoint("TOP", "VSR_MAIN_FRAME", 0, -0);
-VRO_MainFrame_Title:SetPoint("LEFT", "VSR_MAIN_FRAME", 0, -0);
-VRO_MainFrame_Title:SetPoint("RIGHT", "VSR_MAIN_FRAME", 0, -0);
+VRO_MainFrame_Title:SetPoint("TOP", "VRO_MainFrame", 0, -0);
+VRO_MainFrame_Title:SetPoint("LEFT", "VRO_MainFrame", 0, -0);
+VRO_MainFrame_Title:SetPoint("RIGHT", "VRO_MainFrame", 0, -0);
 VRO_MainFrame_Title:SetWidth(20);
 
 VRO_MainFrame_Title_text = VRO_MainFrame_Title:CreateFontString("VRO_MainFrame_Title", "ARTWORK", "GameFontWhite")
@@ -77,6 +130,41 @@ VRO_MainFrame_Title_text:SetText("Raid Organiser");
 VRO_MainFrame_Title_text:SetFont("Fonts\\FRIZQT__.TTF", 10)
 VRO_MainFrame_Title_text:SetTextColor(0.5, 1, 1, 1);
 
+VRO_MainFrame_Menu = CreateFrame("Frame", "VRO_MainFrame_Menu", VRO_MainFrame);
+VRO_MainFrame_Menu:SetPoint("TOP", "VRO_MainFrame_Title", "BOTTOM", 0, 0);
+local items = {};
+for set,_ in pairs(VSR_SETS) do
+    tinsert(items, set)
+end
+
+local setOpt = {
+    ['name']='sets',
+    ['parent']=VRO_MainFrame,
+    ['title']='Sets',
+    ['items']= items,
+    ['defaultVal']='', 
+    ['changeFunc']=function(dropdown_frame, dropdown_val)
+        VRO_gui.selected = dropdown_val;
+        loadSetInGUI(dropdown_val)
+        -- Custom logic goes here, when you change your dropdown option.
+    end
+}
+SetsDD = createDropdown(setOpt)
+-- Don't forget to set your dropdown's points, we don't do this in the creation method for simplicities sake.
+SetsDD:SetPoint("TOP", VRO_MainFrame_Menu, "TOP", -20, 0);
+SetsDD:SetPoint("LEFT", VRO_MainFrame_Menu, "LEFT", -20, 0);
+
+VRO_MainFrame_Menu_Loadbutton = CreateFrame("Button", "VRO_MainFrame_Menu_Loadbutton", VRO_MainFrame_Menu);
+VRO_MainFrame_Menu_Loadbutton:SetText("Apply Set");
+VRO_MainFrame_Menu_Loadbutton:SetPoint("LEFT", SetsDD, "RIGHT", 10, 0);
+VRO_MainFrame_Menu_Loadbutton:RegisterForClick("AnyUp");
+VRO_MainFrame_Menu_Loadbutton:SetScript("OnClick", function () 
+        sortRaid(VRO_gui.selected);
+end)
+
+VRO_MainFrame_Menu_CurrSetup_Text = VRO_MainFrame_Menu:CreateFontString("VRO_MainFrame_Menu", "ARTWORK", "GameFontWhite");
+VRO_MainFrame_Menu_CurrSetup_Text:SetPoint("RIGHT", VRO_MainFrame_Menu,"RIGHT",0,0);
+VRO_MainFrame_Menu_CurrSetup_Text:SetText("No Raid setup")
 
 --------------------------
 local function getCurrentRaid()
@@ -283,6 +371,7 @@ function sortRaid(org)
 		end
 	end
 	CurrentSetup = org;
+	VRO_MainFrame_Menu_CurrSetup_Text:SetText(org)
 end
 
 function saveCurrentSet(setName)
