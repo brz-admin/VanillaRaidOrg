@@ -85,7 +85,8 @@ local function createDropdown(opts)
     UIDropDownMenu_Initialize(dropdown, function(self, level, _)
         local info = UIDropDownMenu_CreateInfo()
         for key, val in pairs(menu_items) do
-            info.text = val;
+            info.text = val[0]
+            info.icon = val[1]
             info.checked = false
             info.menuList= key
             info.hasArrow = false
@@ -102,6 +103,8 @@ local function createDropdown(opts)
     return dropdown
 end
 --------------------------
+
+-- mettre les signes auto !
 
 --------- FRAMES ---------
 
@@ -134,9 +137,9 @@ VRO_MainFrame_Menu = CreateFrame("Frame", "VRO_MainFrame_Menu", VRO_MainFrame);
 VRO_MainFrame_Menu:SetPoint("TOP", "VRO_MainFrame_Title", "BOTTOM", 0, 0);
 local items = {};
 for set,_ in pairs(VSR_SETS) do
-    tinsert(items, set)
+    tinsert(items,{set,nil})
 end
-
+-- for icons : Interface\\TargetingFrame\\UI-RaidTargetingIcon_X UIDropDownMenu_SetSelectedName
 local setOpt = {
     ['name']='sets',
     ['parent']=VRO_MainFrame,
@@ -159,12 +162,17 @@ VRO_MainFrame_Menu_Loadbutton:SetText("Apply Set");
 VRO_MainFrame_Menu_Loadbutton:SetPoint("LEFT", SetsDD, "RIGHT", 10, 0);
 VRO_MainFrame_Menu_Loadbutton:RegisterForClick("AnyUp");
 VRO_MainFrame_Menu_Loadbutton:SetScript("OnClick", function () 
-        sortRaid(VRO_gui.selected);
+        sortRaid(VRO_gui.selected);o
 end)
 
 VRO_MainFrame_Menu_CurrSetup_Text = VRO_MainFrame_Menu:CreateFontString("VRO_MainFrame_Menu", "ARTWORK", "GameFontWhite");
 VRO_MainFrame_Menu_CurrSetup_Text:SetPoint("RIGHT", VRO_MainFrame_Menu,"RIGHT",0,0);
 VRO_MainFrame_Menu_CurrSetup_Text:SetText("No Raid setup")
+
+VRO_MainFrame_Content = CreateFrame("Frame", "VRO_MainFrame_Content", VRO_MainFrame);
+VRO_MainFrame_Content:SetPoint("TOP",VRO_MainFrame_Menu,"BOTTOM", -10, 0)
+VRO_MainFrame_Content:SetPoint("BOTTOM", VRO_MainFrame, "BOTTOM", 0, 0);
+
 
 --------------------------
 local function getCurrentRaid()
@@ -206,8 +214,10 @@ local function getCurrentRaid()
 				-- We are assuming basic roles
 				if class == "PRIEST" or class == "PALADIN" or class == "DRUID" or class == "SHAMAN" then
 					roster[subgroup][groupIndex[subgroup]].role = "heal";
-				elseif class == "WARRIOR" or class == "ROGUE" or class == "HUNTER" then
+				elseif class == "WARRIOR" or class == "ROGUE" then
 					roster[subgroup][groupIndex[subgroup]].role = "melee";
+				elseif class == "HUNTER" then 
+				    roster[subgroup][groupIndex[subgroup]].role = "ranged";
 				else
 					roster[subgroup][groupIndex[subgroup]].role = "caster";
 				end
@@ -357,6 +367,7 @@ function sortRaid(org)
 					end
 				else
 					-- no name assigned so we use the role and class
+				
 					local thisPlayer = getUAPlayerWithRoleAndClass(datas.role, datas.class, CurrentRoster)
 					if (thisPlayer) then
 						local full = CurrentRoster[group] and CurrentRoster[group].full or fasle;
