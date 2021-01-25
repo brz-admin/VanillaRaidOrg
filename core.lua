@@ -6,7 +6,7 @@ local assignatedPlayers = {};
 local CurrentRoster = {};
 local CurrentSetup = nil;
 
-VRO = VRO;
+VRO = {};
 VRO_SETS = VRO_SETS;
 if (VRO_SETS == nil) then VRO_SETS = {} end
 VRO_Members = VRO_Members;
@@ -16,8 +16,19 @@ tinsert = table.insert;
 GetRaidRosterInfo = GetRaidRosterInfo;
 SwapRaidSubgroup = SwapRaidSubgroup;
 
-VRO_gui = {};
+VRO_gui = {}
 VRO_gui.selected = nil;
+if (VRO_gui.groups == nil) then
+	VRO_gui.groups = {}
+	for g = 1,8 do
+		VRO_gui.groups[g] = {}
+		for p = 1,5 do
+			VRO_gui.groups[g][p] = {
+				["sign"] = 0
+			}
+		end
+	end
+end
 
 ---------- UTIL ----------
 local function dLog(msg, lvl, force)
@@ -43,7 +54,7 @@ local function tprint(tab)
 	end
 end
 
-local function print(msg)
+function VRO.print(msg)
 	DEFAULT_CHAT_FRAME:AddMessage("Vanilla Raid Organiser: "..msg, 1,0,1)
 end
 
@@ -124,17 +135,19 @@ UIDropDownMenu_Initialize(VRO_MainFrame_Menu_SetsDD, function()
 			UIDropDownMenu_SetSelectedName(VRO_MainFrame_Menu_SetsDD, "Current", "Current")
 		end
 	})
-	for set,_ in pairs(VRO_SETS) do
-		UIDropDownMenu_AddButton({
-			text=set,
-			checked=VRO_gui.selected == set,
-			arg1 = set,
-			func = function (set)
-				VRO_gui.selected = set
-				loadSetInGUI(set)
-				UIDropDownMenu_SetSelectedName(VRO_MainFrame_Menu_SetsDD, set, set)
-			end
-		})
+	if (VRO_SETS and type(VRO_SETS) == "table") then
+		for set,_ in pairs(VRO_SETS) do
+			UIDropDownMenu_AddButton({
+				text=set,
+				checked=VRO_gui.selected == set,
+				arg1 = set,
+				func = function (set)
+					VRO_gui.selected = set
+					loadSetInGUI(set)
+					UIDropDownMenu_SetSelectedName(VRO_MainFrame_Menu_SetsDD, set, set)
+				end
+			})
+		end
 	end
 	UIDropDownMenu_SetWidth(30, VRO_MainFrame_Menu_SetsDD)
 	UIDropDownMenu_SetButtonWidth(30, VRO_MainFrame_Menu_SetsDD)
@@ -218,24 +231,78 @@ for group = 1, 8 do
 		VRO_MainFrame_Content_group[group].player[plyr]:SetHeight(VRO_MainFrame_Content_group[group]:GetHeight()/6)
 
 		VRO_MainFrame_Content_group[group].player[plyr].sign = CreateFrame("Button", "VRO_MainFrame_Content_G"..group.."_P"..plyr.."_SIGN", VRO_MainFrame_Content_group[group].player[plyr]);
-		VRO_MainFrame_Content_group[group].player[plyr].sign:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
-		VRO_MainFrame_Content_group[group].player[plyr].sign:SetBackdropColor(0,0,0,0);
-		VRO_MainFrame_Content_group[group].player[plyr].sign:SetNormalTexture("Interface/TargetingFrame/UI-RaidTargetingIcons")
+		VRO_MainFrame_Content_group[group].player[plyr].sign:SetID(group*10+plyr);
+		VRO_MainFrame_Content_group[group].player[plyr].sign:RegisterForClicks("LeftButtonDown");
 		VRO_MainFrame_Content_group[group].player[plyr].sign:SetPoint("LEFT", VRO_MainFrame_Content_group[group].player[plyr], "LEFT", 0,0);
 		VRO_MainFrame_Content_group[group].player[plyr].sign:SetWidth(VRO_MainFrame_Content_group[group]:GetHeight()/6)
 		VRO_MainFrame_Content_group[group].player[plyr].sign:SetHeight(VRO_MainFrame_Content_group[group]:GetHeight()/6)
-		VRO_MainFrame_Content_group[group].player[plyr].sign:SetFrameStrata("DIALOG")
-		VRO_MainFrame_Content_group[group].player[plyr].sign:RegisterForClicks("LeftButtonUp", "RightButtonUp");
-		VRO_MainFrame_Content_group[group].player[plyr].sign:SetScript("OnClick", function () 
-			print("VRO_MainFrame_Content_G"..group.."_P"..player.."_SIGN")
+		VRO_MainFrame_Content_group[group].player[plyr].sign:SetFrameStrata("TOOLTIP")
+		VRO_MainFrame_Content_group[group].player[plyr].sign.texture = VRO_MainFrame_Content_group[group].player[plyr].sign:CreateTexture("VRO_MainFrame_Content_G"..group.."_P"..plyr.."_SIGN_TEXTURE", "ARTWORK")
+		VRO_MainFrame_Content_group[group].player[plyr].sign.texture:SetTexture(nil)
+		VRO_MainFrame_Content_group[group].player[plyr].sign.texture:SetAllPoints(VRO_MainFrame_Content_group[group].player[plyr].sign);
+		VRO_MainFrame_Content_group[group].player[plyr].sign:SetScript("OnClick", function() 
+			
+			gp = tonumber(string.sub(tostring(this:GetID()),1,1));
+			pl = tonumber(string.sub(tostring(this:GetID()),2,2));
+			if (this.texture:GetTexture() == nil and VRO.returnFreeSign()) then
+				local newSign = VRO.returnFreeSign()
+				VRO.setSign(this.texture, newSign)
+				VRO_gui.groups[gp][pl].sign = newSign
+			elseif (this.texture:GetTexture() and VRO_gui.groups[gp][pl].sign == 8) then
+				VRO_gui.groups[gp][pl].sign = 0
+				this.texture:SetTexture(nil)
+			elseif (this.texture:GetTexture()) then
+				for l=VRO_gui.groups[gp][pl].sign+1,8 do
+					if VRO.nobodyHasSignInSetup(l) then
+						VRO.setSign(this.texture, l)
+						VRO_gui.groups[gp][pl].sign = l
+						break;
+					end
+					if l == 8 then
+						VRO_gui.groups[gp][pl].sign = 0
+						this.texture:SetTexture(nil)
+					end
+				end
+			end
 		end)
 		
 	end
 end
 
 
+function VRO.nobodyHasSignInSetup(signID)
+	for g=1,8 do
+		for p=1,5 do
+			if VRO_gui.groups[g][p].sign == signID then return false end
+		end
+	end
+	return true;
+end
+
+function VRO.returnFreeSign()
+	for s=1,8 do
+		if (VRO.nobodyHasSignInSetup(s)) then
+			return s;
+		end
+	end
+	return nil;
+end
+
+function VRO.setSign(texture, signID)
+	texture:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
+	if (signID == 1) then texture:SetTexCoord(0,0.25,0,0.25)
+	elseif (signID == 2) then texture:SetTexCoord(0.25,0.50,0,0.25)
+	elseif (signID == 3) then texture:SetTexCoord(0.50,0.75,0,0.25)
+	elseif (signID == 4) then texture:SetTexCoord(0.75,1.00,0,0.25)
+	elseif (signID == 5) then texture:SetTexCoord(0.00,0.25,0.25,0.50)
+	elseif (signID == 6) then texture:SetTexCoord(0.25,0.50,0.25,0.50)
+	elseif (signID == 7) then texture:SetTexCoord(0.50,0.75,0.25,0.50)
+	elseif (signID == 8) then texture:SetTexCoord(0.75,1.00,0.25,0.50)
+	end
+end
+
 function loadSetInGUI(set)
-	print(set)
+	VRO.print(set)
 end
 --------------------------
 local function getCurrentRaid()
@@ -455,6 +522,8 @@ function saveCurrentSet(setName)
 	elseif VRO_SETS[setName] ~= nil then
 		return print(strfor("%s is already taken, pick another name", setName));
 	end
+
+	getCurrentRaid()
 
 	VRO_SETS[setName] = {
 		[1] = {},
