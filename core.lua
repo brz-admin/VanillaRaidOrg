@@ -8,6 +8,7 @@ local CurrentSetup = nil;
 
 VRO = VRO;
 VRO_SETS = VRO_SETS;
+if (VRO_SETS == nil) then VRO_SETS = {} end
 VRO_Members = VRO_Members;
 strlow = string.lower;
 strfor = string.format;
@@ -15,7 +16,7 @@ tinsert = table.insert;
 GetRaidRosterInfo = GetRaidRosterInfo;
 SwapRaidSubgroup = SwapRaidSubgroup;
 
-local VRO_gui = {};
+VRO_gui = {};
 VRO_gui.selected = nil;
 
 ---------- UTIL ----------
@@ -52,55 +53,21 @@ local function getKeyName(tab, key)
 	end
 end
 
---- Opts:
----     name (string): Name of the dropdown (lowercase)
----     parent (Frame): Parent frame of the dropdown.
----     items (Table): String table of the dropdown options.
----     defaultVal (String): String value for the dropdown to default to (empty otherwise).
----     changeFunc (Function): A custom function to be called, after selecting a dropdown option.
-local function createDropdown(opts)
-    local dropdown_name = '$parent_' .. opts['name'] .. '_dropdown'
-    local menu_items = opts['items'] or {}
-    local title_text = opts['title'] or ''
-    local dropdown_width = 0
-    local default_val = opts['defaultVal'] or ''
-    local change_func = opts['changeFunc'] or function (dropdown_val) end
+local function StripTextures(frame, hide, layer)
+	for _,v in ipairs({frame:GetRegions()}) do
+		if v.SetTexture then
+			local check = true
+			if layer and v:GetDrawLayer() ~= layer then check = false end
 
-    local dropdown = CreateFrame("Frame", dropdown_name, opts['parent'], 'UIDropDownMenuTemplate')
-    local dd_title = dropdown:CreateFontString(dropdown, 'OVERLAY', 'GameFontNormal')
-    dd_title:SetPoint("TOPLEFT", 20, 10)
-
-    for _, item in pairs(menu_items) do -- Sets the dropdown width to the largest item string width.
-        dd_title:SetText(item)
-        local text_width = dd_title:GetStringWidth() + 20
-        if text_width > dropdown_width then
-            dropdown_width = text_width
-        end
-    end
-
-    UIDropDownMenu_SetWidth(dropdown, dropdown_width)
-    UIDropDownMenu_SetText(dropdown, default_val)
-    dd_title:SetText(title_text)
-
-    UIDropDownMenu_Initialize(dropdown, function(self, level, _)
-        local info = UIDropDownMenu_CreateInfo()
-        for key, val in pairs(menu_items) do
-            info.text = val[0]
-            info.icon = val[1]
-            info.checked = false
-            info.menuList= key
-            info.hasArrow = false
-            info.func = function(b)
-                UIDropDownMenu_SetSelectedValue(dropdown, b.value, b.value)
-                UIDropDownMenu_SetText(dropdown, b.value)
-                b.checked = true
-                change_func(dropdown, b.value)
-            end
-            UIDropDownMenu_AddButton(info)
-        end
-    end)
-
-    return dropdown
+			if check then
+				if hide then
+					v:Hide()
+				else
+					v:SetTexture(nil)
+				end
+			end
+		end
+	end
 end
 --------------------------
 
@@ -120,12 +87,13 @@ VRO_MainFrame:SetMovable(true);
 VRO_MainFrame:RegisterForDrag("LeftButton");
 VRO_MainFrame:SetScript("OnDragStart", function() this:StartMoving() end);
 VRO_MainFrame:SetScript("OnDragStop", function() this:StopMovingOrSizing() end);
+VRO_MainFrame:SetPoint("CENTER", "UIParent")
 
 VRO_MainFrame_Title = CreateFrame("Frame", "VRO_MainFrame_Title", VRO_MainFrame);
 VRO_MainFrame_Title:SetPoint("TOP", "VRO_MainFrame", 0, -0);
 VRO_MainFrame_Title:SetPoint("LEFT", "VRO_MainFrame", 0, -0);
 VRO_MainFrame_Title:SetPoint("RIGHT", "VRO_MainFrame", 0, -0);
-VRO_MainFrame_Title:SetWidth(20);
+VRO_MainFrame_Title:SetHeight(20);
 
 VRO_MainFrame_Title_text = VRO_MainFrame_Title:CreateFontString("VRO_MainFrame_Title", "ARTWORK", "GameFontWhite")
 VRO_MainFrame_Title_text:SetPoint("TOP", "VRO_MainFrame_Title", 0, -5);
@@ -135,45 +103,140 @@ VRO_MainFrame_Title_text:SetTextColor(0.5, 1, 1, 1);
 
 VRO_MainFrame_Menu = CreateFrame("Frame", "VRO_MainFrame_Menu", VRO_MainFrame);
 VRO_MainFrame_Menu:SetPoint("TOP", "VRO_MainFrame_Title", "BOTTOM", 0, 0);
-local items = {};
-for set,_ in pairs(VSR_SETS) do
-    tinsert(items,{set,nil})
-end
+VRO_MainFrame_Menu:SetPoint("LEFT", "VRO_MainFrame", 0, -0);
+VRO_MainFrame_Menu:SetPoint("RIGHT", "VRO_MainFrame", 0, -0);
+VRO_MainFrame_Menu:SetHeight(30)
+VRO_MainFrame_Menu:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
+VRO_MainFrame_Menu:SetBackdropColor(0,0,0,0.7);
+
+
+
 -- for icons : Interface\\TargetingFrame\\UI-RaidTargetingIcon_X UIDropDownMenu_SetSelectedName
-local setOpt = {
-    ['name']='sets',
-    ['parent']=VRO_MainFrame,
-    ['title']='Sets',
-    ['items']= items,
-    ['defaultVal']='', 
-    ['changeFunc']=function(dropdown_frame, dropdown_val)
-        VRO_gui.selected = dropdown_val;
-        loadSetInGUI(dropdown_val)
-        -- Custom logic goes here, when you change your dropdown option.
-    end
-}
-SetsDD = createDropdown(setOpt)
--- Don't forget to set your dropdown's points, we don't do this in the creation method for simplicities sake.
-SetsDD:SetPoint("TOP", VRO_MainFrame_Menu, "TOP", -20, 0);
-SetsDD:SetPoint("LEFT", VRO_MainFrame_Menu, "LEFT", -20, 0);
+
+VRO_MainFrame_Menu_SetsDD = CreateFrame("Frame", "VRO_MainFrame_Menu_SetsDD", nil, "UIDropDownMenuTemplate")
+UIDropDownMenu_Initialize(VRO_MainFrame_Menu_SetsDD, function()
+	UIDropDownMenu_AddButton({
+		text="Current",
+		checked=VRO_gui.selected == "Current",
+		func = function ()
+			VRO_gui.selected = "Current"
+			loadSetInGUI("Current")
+			UIDropDownMenu_SetSelectedName(VRO_MainFrame_Menu_SetsDD, "Current", "Current")
+		end
+	})
+	for set,_ in pairs(VRO_SETS) do
+		UIDropDownMenu_AddButton({
+			text=set,
+			checked=VRO_gui.selected == set,
+			arg1 = set,
+			func = function (set)
+				VRO_gui.selected = set
+				loadSetInGUI(set)
+				UIDropDownMenu_SetSelectedName(VRO_MainFrame_Menu_SetsDD, set, set)
+			end
+		})
+	end
+	UIDropDownMenu_SetWidth(30, VRO_MainFrame_Menu_SetsDD)
+	UIDropDownMenu_SetButtonWidth(30, VRO_MainFrame_Menu_SetsDD)
+	UIDropDownMenu_SetText("Sets", VRO_MainFrame_Menu_SetsDD)
+	VRO_MainFrame_Menu_SetsDD:SetPoint("LEFT", VRO_MainFrame_Menu, "LEFT", 10,0);
+	VRO_MainFrame_Menu_SetsDD:SetHeight(20)
+	VRO_MainFrame_Menu_SetsDD:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
+	VRO_MainFrame_Menu_SetsDD:SetBackdropColor(0,0,0,0.5);
+	VRO_MainFrame_Menu_SetsDD:SetBackdropBorderColor(1, 1, 1, 1)
+	VRO_MainFrame_Menu_SetsDDButton:SetAllPoints(VRO_MainFrame_Menu_SetsDD)
+	VRO_MainFrame_Menu_SetsDDText:SetPoint("LEFT", VRO_MainFrame_Menu_SetsDD, "LEFT", 5, 0)
+end, "MENU"
+)
 
 VRO_MainFrame_Menu_Loadbutton = CreateFrame("Button", "VRO_MainFrame_Menu_Loadbutton", VRO_MainFrame_Menu);
 VRO_MainFrame_Menu_Loadbutton:SetText("Apply Set");
-VRO_MainFrame_Menu_Loadbutton:SetPoint("LEFT", SetsDD, "RIGHT", 10, 0);
-VRO_MainFrame_Menu_Loadbutton:RegisterForClick("AnyUp");
+VRO_MainFrame_Menu_Loadbutton:SetFont("Fonts\\FRIZQT__.TTF", 8)
+VRO_MainFrame_Menu_Loadbutton:SetTextColor(1, 1, 1, 1);
+VRO_MainFrame_Menu_Loadbutton:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
+VRO_MainFrame_Menu_Loadbutton:SetBackdropColor(0,0,0,0.7);
+VRO_MainFrame_Menu_Loadbutton:SetPoint("LEFT", VRO_MainFrame_Menu_SetsDD, "RIGHT", 10,0);
+VRO_MainFrame_Menu_Loadbutton:SetWidth(75)
+VRO_MainFrame_Menu_Loadbutton:SetHeight(20)
+VRO_MainFrame_Menu_Loadbutton:SetFrameStrata("DIALOG")
+VRO_MainFrame_Menu_Loadbutton:RegisterForClicks("LeftButtonUp", "RightButtonUp");
 VRO_MainFrame_Menu_Loadbutton:SetScript("OnClick", function () 
-        sortRaid(VRO_gui.selected);o
+	if (VRO_gui.selected and VRO_gui.selected ~= "Current") then
+		sortRaid(VRO_gui.selected);
+	end
 end)
 
 VRO_MainFrame_Menu_CurrSetup_Text = VRO_MainFrame_Menu:CreateFontString("VRO_MainFrame_Menu", "ARTWORK", "GameFontWhite");
-VRO_MainFrame_Menu_CurrSetup_Text:SetPoint("RIGHT", VRO_MainFrame_Menu,"RIGHT",0,0);
+VRO_MainFrame_Menu_CurrSetup_Text:SetPoint("RIGHT", VRO_MainFrame_Menu,"RIGHT",-10,0);
 VRO_MainFrame_Menu_CurrSetup_Text:SetText("No Raid setup")
+VRO_MainFrame_Menu_CurrSetup_Text:SetFont("Fonts\\FRIZQT__.TTF", 8)
+VRO_MainFrame_Menu_CurrSetup_Text:SetTextColor(1, 1, 1, 1);
 
-VRO_MainFrame_Content = CreateFrame("Frame", "VRO_MainFrame_Content", VRO_MainFrame);
-VRO_MainFrame_Content:SetPoint("TOP",VRO_MainFrame_Menu,"BOTTOM", -10, 0)
-VRO_MainFrame_Content:SetPoint("BOTTOM", VRO_MainFrame, "BOTTOM", 0, 0);
+VRO_MainFrame_Content_LEFT = CreateFrame("Frame", "VRO_MainFrame_Content_LEFT", VRO_MainFrame);
+VRO_MainFrame_Content_LEFT:SetPoint("TOP",VRO_MainFrame_Menu,"BOTTOM", -10, 0)
+VRO_MainFrame_Content_LEFT:SetPoint("BOTTOM", VRO_MainFrame, "BOTTOM", 0, 0);
+VRO_MainFrame_Content_LEFT:SetPoint("LEFT", VRO_MainFrame, "LEFT", 0, 0);
+VRO_MainFrame_Content_LEFT:SetWidth(VRO_MainFrame:GetWidth()/2)
+VRO_MainFrame_Content_LEFT:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
+VRO_MainFrame_Content_LEFT:SetBackdropColor(0,0,0,0.25);
+
+VRO_MainFrame_Content_RIGHT = CreateFrame("Frame", "VRO_MainFrame_Content_RIGHT", VRO_MainFrame);
+VRO_MainFrame_Content_RIGHT:SetPoint("TOP",VRO_MainFrame_Menu,"BOTTOM", -10, 0)
+VRO_MainFrame_Content_RIGHT:SetPoint("BOTTOM", VRO_MainFrame, "BOTTOM", 0, 0);
+VRO_MainFrame_Content_RIGHT:SetPoint("LEFT", VRO_MainFrame_Content_LEFT, "RIGHT", 0, 0);
+VRO_MainFrame_Content_RIGHT:SetWidth(VRO_MainFrame:GetWidth()/2)
+VRO_MainFrame_Content_RIGHT:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
+VRO_MainFrame_Content_RIGHT:SetBackdropColor(0,0,0,0.25);
+
+VRO_MainFrame_Content_group = {};
+for group = 1, 8 do
+	local side = group <= 4 and "LEFT" or "RIGHT"
+	local parent = group <= 4 and VRO_MainFrame_Content_LEFT or VRO_MainFrame_Content_RIGHT
+	local pheight = 290 --parent:GetHeight()
+	local cheight = (pheight/4)-5
+	local offst = (group <= 4 and (2.5+(2.5*(group-1))+((group-1)*cheight))) or (2.5+(2.5*(group-5))+((group-5)*cheight))
+	VRO_MainFrame_Content_group[group] = CreateFrame("Frame", "VRO_MainFrame_Content_G"..group, parent)
+	VRO_MainFrame_Content_group[group]:SetPoint("TOPLEFT",parent,"TOPLEFT", 2.5, -offst)
+	VRO_MainFrame_Content_group[group]:SetPoint("RIGHT",parent,"RIGHT", -2.5, 0)
+	VRO_MainFrame_Content_group[group]:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
+	VRO_MainFrame_Content_group[group]:SetBackdropColor(0,0,0,0.25);
+	VRO_MainFrame_Content_group[group]:SetHeight(cheight)
+	VRO_MainFrame_Content_group[group].name = VRO_MainFrame_Content_group[group]:CreateFontString("VRO_MainFrame_Content_G"..group, "ARTWORK", "GameFontWhite")
+	VRO_MainFrame_Content_group[group].name:SetPoint("TOP", VRO_MainFrame_Content_group[group],"TOP",0,0);
+	VRO_MainFrame_Content_group[group].name:SetText("Group "..group)
+	VRO_MainFrame_Content_group[group].name:SetFont("Fonts\\FRIZQT__.TTF", 8)
+	VRO_MainFrame_Content_group[group].name:SetTextColor(1, 1, 1, 1);
+	VRO_MainFrame_Content_group[group].player = {}
+	for plyr = 1,5 do
+		local poffst = plyr*(VRO_MainFrame_Content_group[group]:GetHeight()/6)
+
+		VRO_MainFrame_Content_group[group].player[plyr] = CreateFrame("Frame", "VRO_MainFrame_Content_G"..group.."_P"..plyr, VRO_MainFrame_Content_group[group])
+		VRO_MainFrame_Content_group[group].player[plyr]:SetPoint("TOPLEFT",VRO_MainFrame_Content_group[group],"TOPLEFT", 0, -poffst)
+		VRO_MainFrame_Content_group[group].player[plyr]:SetPoint("RIGHT",VRO_MainFrame_Content_group[group],"RIGHT", 0, 0)
+		VRO_MainFrame_Content_group[group].player[plyr]:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
+		VRO_MainFrame_Content_group[group].player[plyr]:SetBackdropColor(1,1,1,0.25);
+		VRO_MainFrame_Content_group[group].player[plyr]:SetHeight(VRO_MainFrame_Content_group[group]:GetHeight()/6)
+
+		VRO_MainFrame_Content_group[group].player[plyr].sign = CreateFrame("Button", "VRO_MainFrame_Content_G"..group.."_P"..plyr.."_SIGN", VRO_MainFrame_Content_group[group].player[plyr]);
+		VRO_MainFrame_Content_group[group].player[plyr].sign:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
+		VRO_MainFrame_Content_group[group].player[plyr].sign:SetBackdropColor(0,0,0,0);
+		VRO_MainFrame_Content_group[group].player[plyr].sign:SetNormalTexture("Interface/TargetingFrame/UI-RaidTargetingIcons")
+		VRO_MainFrame_Content_group[group].player[plyr].sign:SetPoint("LEFT", VRO_MainFrame_Content_group[group].player[plyr], "LEFT", 0,0);
+		VRO_MainFrame_Content_group[group].player[plyr].sign:SetWidth(VRO_MainFrame_Content_group[group]:GetHeight()/6)
+		VRO_MainFrame_Content_group[group].player[plyr].sign:SetHeight(VRO_MainFrame_Content_group[group]:GetHeight()/6)
+		VRO_MainFrame_Content_group[group].player[plyr].sign:SetFrameStrata("DIALOG")
+		VRO_MainFrame_Content_group[group].player[plyr].sign:RegisterForClicks("LeftButtonUp", "RightButtonUp");
+		VRO_MainFrame_Content_group[group].player[plyr].sign:SetScript("OnClick", function () 
+			print("VRO_MainFrame_Content_G"..group.."_P"..player.."_SIGN")
+		end)
+		
+	end
+end
 
 
+function loadSetInGUI(set)
+	print(set)
+end
 --------------------------
 local function getCurrentRaid()
     local roster = {};
@@ -349,7 +412,7 @@ function sortRaid(org)
 			assignatedPlayers[k] = nil
 		end
 
-		for group,members in pairs(VSR_SETS[org]) do
+		for group,members in pairs(VRO_SETS[org]) do
 			for member,datas in pairs(members) do
 				-- if a name is precised we look into the raid if the player is there
 				if (datas.name) then
