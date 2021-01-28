@@ -1,10 +1,24 @@
 
 
-local dbug = true;
-local dbuglvl = 2;
+local dbug = false;
+local dbuglvl = 0;
 local assignatedPlayers = {};
 local CurrentRoster = {};
 local CurrentSetup = nil;
+
+local CLASS_ICON_TCOORDS = CLASS_ICON_TCOORDS or {
+	["WARRIOR"]     = {0, 0.25, 0, 0.25},
+	["MAGE"]        = {0.25, 0.49609375, 0, 0.25},
+	["ROGUE"]       = {0.49609375, 0.7421875, 0, 0.25},
+	["DRUID"]       = {0.7421875, 0.98828125, 0, 0.25},
+	["HUNTER"]      = {0, 0.25, 0.25, 0.5},
+	["SHAMAN"]      = {0.25, 0.49609375, 0.25, 0.5},
+	["PRIEST"]      = {0.49609375, 0.7421875, 0.25, 0.5},
+	["WARLOCK"]     = {0.7421875, 0.98828125, 0.25, 0.5},
+	["PALADIN"]     = {0, 0.25, 0.5, 0.75},
+	["DEATHKNIGHT"] = {0.25, .5, 0.5, .75},
+	["GM"]          = {0.5, 0.73828125, 0.5, .75},
+  }
 
 VRO = {};
 VRO_SETS = VRO_SETS;
@@ -16,6 +30,8 @@ tinsert = table.insert;
 GetRaidRosterInfo = GetRaidRosterInfo;
 SwapRaidSubgroup = SwapRaidSubgroup;
 
+VRO.syncPrefix = "VRO_Sync"
+
 VRO_gui = {}
 VRO_gui.selected = nil;
 if (VRO_gui.groups == nil) then
@@ -24,11 +40,16 @@ if (VRO_gui.groups == nil) then
 		VRO_gui.groups[g] = {}
 		for p = 1,5 do
 			VRO_gui.groups[g][p] = {
-				["sign"] = 0
+				["sign"] = 0,
+				["class"] = nil,
+				["role"] = nil,
+				["name"] = nil,
 			}
 		end
 	end
 end
+
+
 
 ---------- UTIL ----------
 local function dLog(msg, lvl, force)
@@ -55,7 +76,7 @@ local function tprint(tab)
 end
 
 function VRO.print(msg)
-	DEFAULT_CHAT_FRAME:AddMessage("Vanilla Raid Organiser: "..msg, 1,0,1)
+	DEFAULT_CHAT_FRAME:AddMessage("Vanilla Raid Organiser: "..msg, 0.75,0.5,1)
 end
 
 local function getKeyName(tab, key)
@@ -80,25 +101,35 @@ local function StripTextures(frame, hide, layer)
 		end
 	end
 end
---------------------------
 
--- mettre les signes auto !
+function table.clone(org)
+	return {table.unpack(org)}
+end
+
+-- [ strsplit ]
+-- Splits a string using a delimiter.
+-- 'delimiter'  [string]        characters that will be interpreted as delimiter
+--                              characters (bytes) in the string.
+-- 'subject'    [string]        String to split.
+-- return:      [list]          array.
+function strsplit(delimiter, subject)
+	if not subject then return nil end
+	local delimiter, fields = delimiter or ":", {}
+	local pattern = string.format("([^%s]+)", delimiter)
+	string.gsub(subject, pattern, function(c) fields[table.getn(fields)+1] = c end)
+	return fields
+  end
+--------------------------
 
 --------- FRAMES ---------
 
-VRO_MainFrame = CreateFrame("Frame", "VRO_MainFrame")
+VRO_MainFrame = CreateFrame("Frame", "VRO_MainFrame", FriendsFrame)
+VRO_MainFrame:SetPoint("LEFT", "FriendsFrame", "RIGHT", -20, 25)
 VRO_MainFrame:SetWidth(250)
 VRO_MainFrame:SetHeight(340)
+VRO_MainFrame:SetScale(1.25)
 VRO_MainFrame:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
 VRO_MainFrame:SetBackdropColor(0,0,0,0.7);
-VRO_MainFrame:EnableMouse(true);
-VRO_MainFrame:ClearAllPoints();
-VRO_MainFrame:Show();
-VRO_MainFrame:SetMovable(true);
-VRO_MainFrame:RegisterForDrag("LeftButton");
-VRO_MainFrame:SetScript("OnDragStart", function() this:StartMoving() end);
-VRO_MainFrame:SetScript("OnDragStop", function() this:StopMovingOrSizing() end);
-VRO_MainFrame:SetPoint("CENTER", "UIParent")
 
 VRO_MainFrame_Title = CreateFrame("Frame", "VRO_MainFrame_Title", VRO_MainFrame);
 VRO_MainFrame_Title:SetPoint("TOP", "VRO_MainFrame", 0, -0);
@@ -120,11 +151,56 @@ VRO_MainFrame_Menu:SetHeight(30)
 VRO_MainFrame_Menu:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
 VRO_MainFrame_Menu:SetBackdropColor(0,0,0,0.7);
 
+VRO_MainFrame_Save = CreateFrame("Frame", "VRO_MainFrame_Save", VRO_MainFrame);
+VRO_MainFrame_Save:SetPoint("TOPRIGHT", "VRO_MainFrame", "BOTTOMRIGHT", 0, 0);
+VRO_MainFrame_Save:SetHeight(20);
+VRO_MainFrame_Save:SetWidth(100);
+VRO_MainFrame_Save:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
+VRO_MainFrame_Save:SetBackdropColor(0,0,0,0.7);
+VRO_MainFrame_Save:Hide();
 
+VRO_MainFrame_Save.EditBox = CreateFrame("EditBox", "VRO_MainFrame_Save_EditBox", VRO_MainFrame_Save)
+VRO_MainFrame_Save.EditBox:SetPoint("TOPLEFT", VRO_MainFrame_Save, "TOPLEFT", 2.5,-2.5);
+VRO_MainFrame_Save.EditBox:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
+VRO_MainFrame_Save.EditBox:SetBackdropColor(0,0,0,0.7);
+VRO_MainFrame_Save.EditBox:SetWidth(67.5)
+VRO_MainFrame_Save.EditBox:SetHeight(15)
+VRO_MainFrame_Save.EditBox:SetAutoFocus(false)
+VRO_MainFrame_Save.EditBox:SetMaxLetters(20)
+VRO_MainFrame_Save.EditBox:SetFontObject(GameFontWhite)
+VRO_MainFrame_Save.EditBox:SetFont("Fonts\\FRIZQT__.TTF", 8)
+VRO_MainFrame_Save.EditBox:SetScript("OnEnterPressed", function() 
+	VRO_MainFrame_Save.Button:Click();
+end)
+VRO_MainFrame_Save.EditBox:SetScript("OnEscapePressed", function() 
+	this:ClearFocus()
+end)
+VRO_MainFrame_Save.EditBox:SetScript("OnTabPressed", function() 
+	this:ClearFocus()
+end)
 
--- for icons : Interface\\TargetingFrame\\UI-RaidTargetingIcon_X UIDropDownMenu_SetSelectedName
+VRO_MainFrame_Save.Button = CreateFrame("Button", "VRO_MainFrame_Save_Button", VRO_MainFrame_Save);
+VRO_MainFrame_Save.Button:SetText("Apply Set");
+VRO_MainFrame_Save.Button:SetFont("Fonts\\FRIZQT__.TTF", 8)
+VRO_MainFrame_Save.Button:SetTextColor(1, 1, 1, 1);
+VRO_MainFrame_Save.Button:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
+VRO_MainFrame_Save.Button:SetBackdropColor(0,0,0,0.7);
+VRO_MainFrame_Save.Button:SetPoint("RIGHT", VRO_MainFrame_Save, "RIGHT", -2.5,0);
+VRO_MainFrame_Save.Button:SetWidth(25)
+VRO_MainFrame_Save.Button:SetHeight(15)
+VRO_MainFrame_Save.Button:SetText("Save")
+VRO_MainFrame_Save.Button:SetFrameStrata("DIALOG")
+VRO_MainFrame_Save.Button:RegisterForClicks("LeftButtonUp", "RightButtonUp");
+VRO_MainFrame_Save.Button:SetScript("OnClick", function () 
+	if VRO.saveCurrentSet(VRO_MainFrame_Save.EditBox:GetText()) then
+		VRO_gui.selected = VRO_MainFrame_Save.EditBox:GetText()
+		UIDropDownMenu_SetSelectedName(VRO_MainFrame_Menu_SetsDD, VRO_MainFrame_Save.EditBox:GetText(), VRO_MainFrame_Save.EditBox:GetText())
+		VRO_MainFrame_Save.EditBox:SetText("")
+		VRO_MainFrame_Save.EditBox:ClearFocus()
+	end
+end)
 
-VRO_MainFrame_Menu_SetsDD = CreateFrame("Frame", "VRO_MainFrame_Menu_SetsDD", nil, "UIDropDownMenuTemplate")
+VRO_MainFrame_Menu_SetsDD = CreateFrame("Frame", "VRO_MainFrame_Menu_SetsDD", VRO_MainFrame, "UIDropDownMenuTemplate")
 UIDropDownMenu_Initialize(VRO_MainFrame_Menu_SetsDD, function()
 	UIDropDownMenu_AddButton({
 		text="Current",
@@ -169,7 +245,7 @@ VRO_MainFrame_Menu_Loadbutton:SetTextColor(1, 1, 1, 1);
 VRO_MainFrame_Menu_Loadbutton:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
 VRO_MainFrame_Menu_Loadbutton:SetBackdropColor(0,0,0,0.7);
 VRO_MainFrame_Menu_Loadbutton:SetPoint("LEFT", VRO_MainFrame_Menu_SetsDD, "RIGHT", 10,0);
-VRO_MainFrame_Menu_Loadbutton:SetWidth(75)
+VRO_MainFrame_Menu_Loadbutton:SetWidth(50)
 VRO_MainFrame_Menu_Loadbutton:SetHeight(20)
 VRO_MainFrame_Menu_Loadbutton:SetFrameStrata("DIALOG")
 VRO_MainFrame_Menu_Loadbutton:RegisterForClicks("LeftButtonUp", "RightButtonUp");
@@ -203,11 +279,21 @@ VRO_MainFrame_Content_RIGHT:SetBackdropColor(0,0,0,0.25);
 
 VRO_MainFrame_Content_group = {};
 for group = 1, 8 do
-	local side = group <= 4 and "LEFT" or "RIGHT"
-	local parent = group <= 4 and VRO_MainFrame_Content_LEFT or VRO_MainFrame_Content_RIGHT
+	local side = math.mod(group, 2) ~= 0 and "LEFT" or "RIGHT"
+	local parent = math.mod(group, 2) ~= 0 and VRO_MainFrame_Content_LEFT or VRO_MainFrame_Content_RIGHT
 	local pheight = 290 --parent:GetHeight()
 	local cheight = (pheight/4)-5
-	local offst = (group <= 4 and (2.5+(2.5*(group-1))+((group-1)*cheight))) or (2.5+(2.5*(group-5))+((group-5)*cheight))
+	local order = {
+		[1] = 0,
+		[2] = 0,
+		[3] = 1,
+		[4] = 1,
+		[5]	= 2,
+		[6]	= 2,
+		[7] = 3,
+		[8] = 3
+	}
+	local offst = (2.5+(2.5*(order[group]))+((order[group])*cheight))
 	VRO_MainFrame_Content_group[group] = CreateFrame("Frame", "VRO_MainFrame_Content_G"..group, parent)
 	VRO_MainFrame_Content_group[group]:SetPoint("TOPLEFT",parent,"TOPLEFT", 2.5, -offst)
 	VRO_MainFrame_Content_group[group]:SetPoint("RIGHT",parent,"RIGHT", -2.5, 0)
@@ -241,7 +327,6 @@ for group = 1, 8 do
 		VRO_MainFrame_Content_group[group].player[plyr].sign.texture:SetTexture(nil)
 		VRO_MainFrame_Content_group[group].player[plyr].sign.texture:SetAllPoints(VRO_MainFrame_Content_group[group].player[plyr].sign);
 		VRO_MainFrame_Content_group[group].player[plyr].sign:SetScript("OnClick", function() 
-			
 			gp = tonumber(string.sub(tostring(this:GetID()),1,1));
 			pl = tonumber(string.sub(tostring(this:GetID()),2,2));
 			if (this.texture:GetTexture() == nil and VRO.returnFreeSign()) then
@@ -265,15 +350,289 @@ for group = 1, 8 do
 				end
 			end
 		end)
-		
+
+		VRO_MainFrame_Content_group[group].player[plyr].classIcon = CreateFrame("Button", "VRO_MainFrame_Content_G"..group.."_P"..plyr.."_CLASSICON", VRO_MainFrame_Content_group[group].player[plyr]);
+		VRO_MainFrame_Content_group[group].player[plyr].classIcon:SetID(group*10+plyr);
+		VRO_MainFrame_Content_group[group].player[plyr].classIcon:RegisterForClicks("LeftButtonDown");
+		VRO_MainFrame_Content_group[group].player[plyr].classIcon:SetPoint("LEFT", VRO_MainFrame_Content_group[group].player[plyr].sign, "RIGHT", 0,0);
+		VRO_MainFrame_Content_group[group].player[plyr].classIcon:SetWidth(VRO_MainFrame_Content_group[group]:GetHeight()/6)
+		VRO_MainFrame_Content_group[group].player[plyr].classIcon:SetHeight(VRO_MainFrame_Content_group[group]:GetHeight()/6)
+		VRO_MainFrame_Content_group[group].player[plyr].classIcon:SetFrameStrata("TOOLTIP")
+		VRO_MainFrame_Content_group[group].player[plyr].classIcon:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
+		VRO_MainFrame_Content_group[group].player[plyr].classIcon:SetBackdropColor(0,0,0,0.25);
+		VRO_MainFrame_Content_group[group].player[plyr].classIcon.texture = VRO_MainFrame_Content_group[group].player[plyr].classIcon:CreateTexture("VRO_MainFrame_Content_G"..group.."_P"..plyr.."_CLASSICON_TEXTURE", "OVERLAY")
+		VRO_MainFrame_Content_group[group].player[plyr].classIcon.texture:SetTexture(nil)
+		VRO_MainFrame_Content_group[group].player[plyr].classIcon.texture:SetAllPoints(VRO_MainFrame_Content_group[group].player[plyr].classIcon);
+		VRO_MainFrame_Content_group[group].player[plyr].classIcon:SetScript("OnClick", function() 
+			gp = tonumber(string.sub(tostring(this:GetID()),1,1));
+			pl = tonumber(string.sub(tostring(this:GetID()),2,2));
+			if (this.texture:GetTexture() ~= nil) then
+				local className;
+				if (VRO_gui.groups[gp][pl].class == "WARRIOR") then
+					className = "ROGUE"
+				elseif (VRO_gui.groups[gp][pl].class == "ROGUE") then
+					className = "MAGE"
+				elseif (VRO_gui.groups[gp][pl].class == "MAGE") then
+					className = "DRUID"
+				elseif (VRO_gui.groups[gp][pl].class == "DRUID") then
+					className = "HUNTER"
+				elseif (VRO_gui.groups[gp][pl].class == "HUNTER") then
+					className = "PRIEST"
+				elseif (VRO_gui.groups[gp][pl].class == "PRIEST") then
+					className = "WARLOCK"
+				elseif (VRO_gui.groups[gp][pl].class == "WARLOCK") then
+					if (UnitFactionGroup("player") == "Alliance") then
+						className = "PALADIN"
+					else
+						className = "SHAMAN"
+					end
+				else 
+					this.texture:SetTexture(nil);
+					VRO_gui.groups[gp][pl].class = nil
+				end
+				
+				if className then
+					VRO_gui.groups[gp][pl].class = className;
+					this.texture:SetTexCoord(CLASS_ICON_TCOORDS[className][1],CLASS_ICON_TCOORDS[className][2],CLASS_ICON_TCOORDS[className][3],CLASS_ICON_TCOORDS[className][4])
+				end
+			else
+				
+				if (not VRO_gui.groups[gp]) then
+					VRO_gui.groups[gp] = {}
+				end
+	
+				if (not VRO_gui.groups[gp][pl]) then
+					VRO_gui.groups[gp][pl] = {}
+				end
+				
+				VRO_gui.groups[gp][pl].class = "WARRIOR";
+				this.texture:SetTexture("Interface\\AddOns\\VanillaRaidOrg\\classicons")
+				this.texture:SetTexCoord(CLASS_ICON_TCOORDS[VRO_gui.groups[gp][pl].class][1],CLASS_ICON_TCOORDS[VRO_gui.groups[gp][pl].class][2],CLASS_ICON_TCOORDS[VRO_gui.groups[gp][pl].class][3],CLASS_ICON_TCOORDS[VRO_gui.groups[gp][pl].class][4])
+			end
+		end)
+
+		VRO_MainFrame_Content_group[group].player[plyr].nameBox = CreateFrame("EditBox", "VRO_MainFrame_Content_G"..group.."_P"..plyr.."_nameBox", VRO_MainFrame_Content_group[group].player[plyr]);
+		VRO_MainFrame_Content_group[group].player[plyr].nameBox:SetID(group*10+plyr);
+		VRO_MainFrame_Content_group[group].player[plyr].nameBox:SetPoint("LEFT", VRO_MainFrame_Content_group[group].player[plyr].classIcon, "RIGHT", 0,0);
+		VRO_MainFrame_Content_group[group].player[plyr].nameBox:SetWidth(65)
+		VRO_MainFrame_Content_group[group].player[plyr].nameBox:SetHeight(VRO_MainFrame_Content_group[group]:GetHeight()/6)
+		VRO_MainFrame_Content_group[group].player[plyr].nameBox:SetAutoFocus(false)
+		VRO_MainFrame_Content_group[group].player[plyr].nameBox:SetMaxLetters(20)
+		VRO_MainFrame_Content_group[group].player[plyr].nameBox:SetFontObject(GameFontWhite)
+
+		VRO_MainFrame_Content_group[group].player[plyr].nameBox:SetFont("Fonts\\FRIZQT__.TTF", 8)
+		VRO_MainFrame_Content_group[group].player[plyr].nameBox:SetScript("OnEnterPressed", function()
+			gp = tonumber(string.sub(tostring(this:GetID()),1,1));
+			pl = tonumber(string.sub(tostring(this:GetID()),2,2));
+			this:ClearFocus()
+			if not (VRO_gui.groups[gp]) then
+				VRO_gui.groups[gp] = {}
+			end
+
+			if not (VRO_gui.groups[gp][pl]) then
+				VRO_gui.groups[gp][pl] = {}
+			end
+
+			VRO_gui.groups[gp][pl].name = this:GetText()
+
+			if (VRO_Members[VRO_gui.groups[gp][pl].name]) then
+				if VRO_Members[VRO_gui.groups[gp][pl].name].role then
+					VRO_gui.groups[gp][pl].role = VRO_Members[VRO_gui.groups[gp][pl].name].role
+					VRO_MainFrame_Content_group[gp].player[pl].role:SetText(VRO_Members[VRO_gui.groups[gp][pl].name].role)
+				end
+
+				if VRO_Members[VRO_gui.groups[gp][pl].name].class then
+					VRO_gui.groups[gp][pl].class = VRO_Members[VRO_gui.groups[gp][pl].name].class
+					VRO_MainFrame_Content_group[gp].player[pl].classIcon.texture:SetTexture("Interface\\AddOns\\VanillaRaidOrg\\classicons")
+					VRO_MainFrame_Content_group[gp].player[pl].classIcon.texture:SetTexCoord(CLASS_ICON_TCOORDS[VRO_gui.groups[gp][pl].class][1],CLASS_ICON_TCOORDS[VRO_gui.groups[gp][pl].class][2],CLASS_ICON_TCOORDS[VRO_gui.groups[gp][pl].class][3],CLASS_ICON_TCOORDS[VRO_gui.groups[gp][pl].class][4])
+				end
+			end
+		end)
+		VRO_MainFrame_Content_group[group].player[plyr].nameBox:SetScript("OnEscapePressed", function()
+			gp = tonumber(string.sub(tostring(this:GetID()),1,1));
+			pl = tonumber(string.sub(tostring(this:GetID()),2,2));
+			if not (VRO_gui.groups[gp]) then
+				VRO_gui.groups[gp] = {}
+			end
+
+			if not (VRO_gui.groups[gp][pl]) then
+				VRO_gui.groups[gp][pl] = {}
+			end
+			this:ClearFocus()
+			VRO_gui.groups[gp][pl].name = this:GetText()
+		end)
+		VRO_MainFrame_Content_group[group].player[plyr].nameBox:SetScript("OnTabPressed", function()
+			gp = tonumber(string.sub(tostring(this:GetID()),1,1));
+			pl = tonumber(string.sub(tostring(this:GetID()),2,2));
+			if not (VRO_gui.groups[gp]) then
+				VRO_gui.groups[gp] = {}
+			end
+
+			if not (VRO_gui.groups[gp][pl]) then
+				VRO_gui.groups[gp][pl] = {}
+			end
+			this:ClearFocus()
+			VRO_gui.groups[gp][pl].name = this:GetText()
+			if (pl < 5) then
+				VRO_MainFrame_Content_group[gp].player[pl+1].nameBox:SetFocus();
+			elseif (pl == 5) and (gp < 8) then
+				VRO_MainFrame_Content_group[gp+1].player[1].nameBox:SetFocus();
+			end
+		end)
+
+		VRO_MainFrame_Content_group[group].player[plyr].role = CreateFrame("Button", "VRO_MainFrame_Content_G"..group.."_P"..plyr.."_ROLE", VRO_MainFrame_Content_group[group].player[plyr]);
+		VRO_MainFrame_Content_group[group].player[plyr].role:SetID(group*10+plyr);
+		VRO_MainFrame_Content_group[group].player[plyr].role:RegisterForClicks("LeftButtonDown");
+		VRO_MainFrame_Content_group[group].player[plyr].role:SetPoint("LEFT", VRO_MainFrame_Content_group[group].player[plyr].nameBox, "RIGHT", 0,0);
+		VRO_MainFrame_Content_group[group].player[plyr].role:SetWidth(35)
+		VRO_MainFrame_Content_group[group].player[plyr].role:SetHeight(VRO_MainFrame_Content_group[group]:GetHeight()/6)
+		VRO_MainFrame_Content_group[group].player[plyr].role:SetFrameStrata("TOOLTIP")
+		VRO_MainFrame_Content_group[group].player[plyr].role:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
+		VRO_MainFrame_Content_group[group].player[plyr].role:SetBackdropColor(0,0,0,0.25);
+		VRO_MainFrame_Content_group[group].player[plyr].role:SetFont("Fonts\\FRIZQT__.TTF", 8)
+		VRO_MainFrame_Content_group[group].player[plyr].role:SetScript("OnClick", function() 
+			gp = tonumber(string.sub(tostring(this:GetID()),1,1));
+			pl = tonumber(string.sub(tostring(this:GetID()),2,2));
+
+			if (not VRO_gui.groups[gp]) then
+				VRO_gui.groups[gp] = {}
+			end
+
+			if (not VRO_gui.groups[gp][pl]) then
+				VRO_gui.groups[gp][pl] = {}
+			end
+
+			if (VRO_gui.groups[gp][pl].role) then
+				if (VRO_gui.groups[gp][pl].role == "tank") then
+					this:SetText("melee")
+					VRO_gui.groups[gp][pl].role = "melee"
+				elseif (VRO_gui.groups[gp][pl].role == "melee") then
+					this:SetText("range")
+					VRO_gui.groups[gp][pl].role = "range"
+				elseif (VRO_gui.groups[gp][pl].role == "range") then
+					this:SetText("caster")
+					VRO_gui.groups[gp][pl].role = "caster"
+				elseif (VRO_gui.groups[gp][pl].role == "caster") then
+					this:SetText("heal")
+					VRO_gui.groups[gp][pl].role = "heal"
+				else
+					this:SetText("")
+					VRO_gui.groups[gp][pl].role = nil
+				end
+			else
+				VRO_gui.groups[gp][pl].role = "tank"
+				this:SetText("tank")
+			end
+
+			if VRO_gui.groups[gp][pl].name and VRO_Members[VRO_gui.groups[gp][pl].name] then
+				VRO_Members[VRO_gui.groups[gp][pl].name].role = VRO_gui.groups[gp][pl].role
+			end
+		end)
 	end
 end
 
+---------------------
+VRO_MainFrame:RegisterEvent("CHAT_MSG_ADDON");
+
+VRO_MainFrame:SetScript("OnEvent", function() 
+	if (event == "CHAT_MSG_ADDON" and arg1 == VRO.syncPrefix) then
+		VRO.HandleAddonMSG(arg4, arg2);
+	end
+end)
+-----FUNCTIONS-------
+
+-- SYNC STUFF
+
+function VRO.addonCom(comType, content)
+	SendAddonMessage(VRO.syncPrefix, comType..";;;"..content, "RAID")
+end
+
+function VRO.HandleAddonMSG(sender, data)
+	-- check if we accept the call
+	if not VRO.PlayerIsPromoted(sender) or UnitName("Player") == sender then return end
+	-- separate the type of command of it's datas
+	local split = strsplit(";;;", data)
+	local cmd = split[1]
+	local datas = split[2]
+
+	if cmd == "promote" then
+		PromoteToAssistant(datas)
+	elseif cmd == "sendComp" then
+		-- We are gonna recieve the comp with one msg by player
+		-- message looks like this => COMPNAME:GROUP:PLAYERID:SIGN:CLASS:ROLE:NAME
+		-- we split the message again to separate every info
+		local dataSplit =  strsplit(":", datas)
+		local compName = dataSplit[1]
+		local group = dataSplit[2]
+		local player = dataSplit[3]
+		local sign = VRO.nilIsNil(dataSplit[4])
+		local class = VRO.nilIsNil(dataSplit[5])
+		local role = VRO.nilIsNil(dataSplit[6])
+		local name = VRO.nilIsNil(dataSplit[7])
+
+		if not VRO_SETS[compName] then
+			VRO_SETS[compName] = {}
+		end
+
+		if not VRO_SETS[compName][group] then
+			VRO_SETS[compName][group] = {}
+		end
+
+		VRO_SETS[compName][group][player] = {
+			["sign"] = sign,
+			["class"] = class,
+			["role"] = role,
+			["name"] = name,
+		}
+	end
+end
+
+function VRO.nilIsNil(val)
+	if val == "nil" then
+		return nil
+	else
+		return val
+	end
+end
+
+function VRO.PlayerIsPromoted(name)
+	if not name then return false end
+
+	for raidIndex=1, MAX_RAID_MEMBERS do
+		name, rank = GetRaidRosterInfo(raidIndex);
+		if (name and rank and rank > 0 ) then return true end
+	end
+	return false;
+end
+
+function VRO.WypeGui()
+	if (VRO_gui.groups) then
+		for g = 1,8 do
+			VRO_gui.groups[g] = {}
+			for p = 1,5 do
+				VRO_gui.groups[g][p] = {
+					["sign"] = 0,
+					["class"] = nil,
+					["role"] = nil,
+					["name"] = nil,
+				}
+
+				VRO_MainFrame_Content_group[g].player[p].sign.texture:SetTexture(nil)
+				VRO_MainFrame_Content_group[g].player[p].classIcon.texture:SetTexture(nil)
+				VRO_MainFrame_Content_group[g].player[p].nameBox:SetText("")
+				VRO_MainFrame_Content_group[g].player[p].role:SetText("")
+			end
+		end
+	end
+	
+end
 
 function VRO.nobodyHasSignInSetup(signID)
 	for g=1,8 do
-		for p=1,5 do
-			if VRO_gui.groups[g][p].sign == signID then return false end
+		if VRO_gui.groups[g] then
+			for p=1,5 do
+				if VRO_gui.groups[g][p] and VRO_gui.groups[g][p].sign and VRO_gui.groups[g][p].sign == signID then return false end
+			end
 		end
 	end
 	return true;
@@ -289,51 +648,93 @@ function VRO.returnFreeSign()
 end
 
 function VRO.setSign(texture, signID)
-	texture:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
-	if (signID == 1) then texture:SetTexCoord(0,0.25,0,0.25)
-	elseif (signID == 2) then texture:SetTexCoord(0.25,0.50,0,0.25)
-	elseif (signID == 3) then texture:SetTexCoord(0.50,0.75,0,0.25)
-	elseif (signID == 4) then texture:SetTexCoord(0.75,1.00,0,0.25)
-	elseif (signID == 5) then texture:SetTexCoord(0.00,0.25,0.25,0.50)
-	elseif (signID == 6) then texture:SetTexCoord(0.25,0.50,0.25,0.50)
-	elseif (signID == 7) then texture:SetTexCoord(0.50,0.75,0.25,0.50)
-	elseif (signID == 8) then texture:SetTexCoord(0.75,1.00,0.25,0.50)
+	if (signID and signID > 0 and signID < 9) then
+		texture:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
+		if (signID == 1) then texture:SetTexCoord(0,0.25,0,0.25)
+		elseif (signID == 2) then texture:SetTexCoord(0.25,0.50,0,0.25)
+		elseif (signID == 3) then texture:SetTexCoord(0.50,0.75,0,0.25)
+		elseif (signID == 4) then texture:SetTexCoord(0.75,1.00,0,0.25)
+		elseif (signID == 5) then texture:SetTexCoord(0.00,0.25,0.25,0.50)
+		elseif (signID == 6) then texture:SetTexCoord(0.25,0.50,0.25,0.50)
+		elseif (signID == 7) then texture:SetTexCoord(0.50,0.75,0.25,0.50)
+		elseif (signID == 8) then texture:SetTexCoord(0.75,1.00,0.25,0.50)
+		end
 	end
 end
 
 function loadSetInGUI(set)
-	VRO.print(set)
+	VRO.print(strfor("Loading Set [%s]",set))
+	VRO.WypeGui();
+	set = set or "Current";
+
+	dLog(set, 3)
+	if set == "Current" then
+		VRO_gui.groups = VRO.getCurrentRaid()
+		VRO_MainFrame_Save:Show();
+	else
+		VRO_gui.groups = table.clone(VRO_SETS[set])
+		VRO_MainFrame_Save:Show();
+	end
+
+	for group=1,8 do
+		for player=1,5 do
+			if (VRO_gui.groups[group] and VRO_gui.groups[group][player] and type(VRO_gui.groups[group][player]) == "table") then
+				if VRO_gui.groups[group][player].sign then
+					VRO.setSign(VRO_MainFrame_Content_group[group].player[player].sign.texture, VRO_gui.groups[group][player].sign)
+				end
+
+				if VRO_gui.groups[group][player].class then
+					VRO_MainFrame_Content_group[group].player[player].classIcon.texture:SetTexture("Interface\\AddOns\\VanillaRaidOrg\\classicons")
+					VRO_MainFrame_Content_group[group].player[player].classIcon.texture:SetTexCoord(CLASS_ICON_TCOORDS[VRO_gui.groups[group][player].class][1],CLASS_ICON_TCOORDS[VRO_gui.groups[group][player].class][2],CLASS_ICON_TCOORDS[VRO_gui.groups[group][player].class][3],CLASS_ICON_TCOORDS[VRO_gui.groups[group][player].class][4])
+				end
+
+				if VRO_gui.groups[group][player].name then
+					VRO_MainFrame_Content_group[group].player[player].nameBox:SetText(VRO_gui.groups[group][player].name)
+				end
+
+				if VRO_gui.groups[group][player].role then
+					VRO_MainFrame_Content_group[group].player[player].role:SetText(VRO_gui.groups[group][player].role)
+				end
+			end
+		end
+	end
+	
 end
 --------------------------
-local function getCurrentRaid()
+function VRO.getCurrentRaid()
     local roster = {};
     
     local groupIndex = {
-        [1] = 0,
-        [2] = 0,
-        [3] = 0,
-        [4] = 0,
-        [5] = 0,
-        [6] = 0,
-        [7] = 0,
-        [8] = 0
+        [1] = 1,
+        [2] = 1,
+        [3] = 1,
+        [4] = 1,
+        [5] = 1,
+        [6] = 1,
+        [7] = 1,
+        [8] = 1
 	}
 	
-    if VRO_Members == nil then
+	if VRO_Members == nil  then
 		VRO_Members = {}
 	end
 
     for raidIndex=1, MAX_RAID_MEMBERS do
     	name, rank,subgroup, _, _, class, _, _, _ = GetRaidRosterInfo(raidIndex);
 		if name and rank and subgroup and class then 
-			roster[subgroup] = {
-				[groupIndex[subgroup]] = {
+			if not roster[subgroup] then
+				roster[subgroup] = {}
+			end
+
+			roster[subgroup][groupIndex[subgroup]] = {
 					["raidIndex"] = raidIndex,
 					["name"] = name,
-					["class"] = strlow(class),
+					["class"] = class,
 					["rank"] = rank,
+					["sign"] = GetRaidTargetIndex("raid"..raidIndex),
 				}
-			}
+
+			dLog(name.."("..class..") -> "..subgroup.."("..groupIndex[subgroup]..") = "..raidIndex, 2);
 			
 			-- role assignement
 			-- tank, heal, melee, caster, not sure if I should put equi/feral and co...
@@ -347,19 +748,19 @@ local function getCurrentRaid()
 				elseif class == "WARRIOR" or class == "ROGUE" then
 					roster[subgroup][groupIndex[subgroup]].role = "melee";
 				elseif class == "HUNTER" then 
-				    roster[subgroup][groupIndex[subgroup]].role = "ranged";
+				    roster[subgroup][groupIndex[subgroup]].role = "range";
 				else
 					roster[subgroup][groupIndex[subgroup]].role = "caster";
 				end
 
 				VRO_Members[name] = {
-					["class"] = strlow(class),
+					["class"] = class,
 					["role"] = roster[subgroup][groupIndex[subgroup]].role,
 				}
 			end
 			
 			groupIndex[subgroup] = groupIndex[subgroup] +1;
-			if groupIndex[subgroup] == 5 then
+			if groupIndex[subgroup] == 6 then
 				roster[subgroup].full = true;
 				dLog(strfor("%d is full", subgroup));
 			end
@@ -389,7 +790,7 @@ local function getUnAssignedPlayerInGroup(group)
 	dLog("getUnassignedPlayerInGroup")
 	for member, datas in pairs(CurrentRoster[group]) do
 		if type(datas) == "table" then
-			if not (has_value(assignatedPlayers, datas.raidIndex)) then
+			if datas.raidIndex and not (has_value(assignatedPlayers, datas.raidIndex)) then
 				dLog(strfor("%s(%d) not assigned",datas.name, datas.raidIndex))
 				return datas.raidIndex; 
 			end
@@ -400,7 +801,7 @@ local function getUnAssignedPlayerInGroup(group)
 end
 
 local function getUAPlayerWithRoleAndClass(role, class, raid)
-	dLog(strfor("getUAPlayerWithRoleAndClass(%s, %s)", role, class))
+	dLog(strfor("getUAPlayerWithRoleAndClass(%s, %s)", role, class or "no class"))
 	local correctRoleidx = nil;
 	for groupe,members in pairs(raid) do
 		for member,data in pairs(members) do
@@ -464,358 +865,128 @@ local function assignPlayer(player, currGroup, full)
 	return nil
 end
 
-
-
 function sortRaid(org)
-	for i=1,15 do --Should be enough iteration to get things right ?
 		-- reset CurrentRoster
 		for k in pairs(CurrentRoster) do
 			CurrentRoster[k] = nil
 		end
-		CurrentRoster = getCurrentRaid()
+		CurrentRoster = VRO.getCurrentRaid()
 
 		-- empty the assignated players list
 		for k in pairs (assignatedPlayers) do
 			assignatedPlayers[k] = nil
 		end
 
+		-- remove every signs
+		for i=1,40 do SetRaidTarget("raid"..i, 9) end
+
 		for group,members in pairs(VRO_SETS[org]) do
 			for member,datas in pairs(members) do
 				-- if a name is precised we look into the raid if the player is there
-				if (datas.name) then
-					local thisPlayer = getPlayerByName(CurrentRoster, datas.name);
-					if (thisPlayer) then 
-						local full = CurrentRoster[group] and CurrentRoster[group].full or fasle;
-						datas.raidIndex = assignPlayer(thisPlayer, group, full)
+				if type(datas) == "table" then
+					if (datas.name) then
+						local thisPlayer = getPlayerByName(CurrentRoster, datas.name);
+						if (thisPlayer) then 
+							local full = CurrentRoster[group] and CurrentRoster[group].full or fasle;
+							datas.raidIndex = assignPlayer(thisPlayer, group, full)
+						else
+							-- the player is not here so we are looking for another player with the role and class (if precised) we are looking for
+							thisPlayer = getUAPlayerWithRoleAndClass(datas.role, datas.class, CurrentRoster)
+							if (thisPlayer) then
+								local full = CurrentRoster[group] and CurrentRoster[group].full or fasle;
+							datas.raidIndex = assignPlayer(thisPlayer, group, full)
+							end
+						end
 					else
-						-- the player is not here so we are looking for another player with the role and class (if precised) we are looking for
-						thisPlayer = getUAPlayerWithRoleAndClass(datas.role, datas.class, CurrentRoster)
+						-- no name assigned so we use the role and class
+					
+						local thisPlayer = getUAPlayerWithRoleAndClass(datas.role, datas.class, CurrentRoster)
 						if (thisPlayer) then
 							local full = CurrentRoster[group] and CurrentRoster[group].full or fasle;
-						datas.raidIndex = assignPlayer(thisPlayer, group, full)
+							datas.raidIndex = assignPlayer(thisPlayer, group, full)
 						end
 					end
-				else
-					-- no name assigned so we use the role and class
-				
-					local thisPlayer = getUAPlayerWithRoleAndClass(datas.role, datas.class, CurrentRoster)
-					if (thisPlayer) then
-						local full = CurrentRoster[group] and CurrentRoster[group].full or fasle;
-						datas.raidIndex = assignPlayer(thisPlayer, group, full)
-					end
-				end
 
-				if datas.role == "tank" and datas.name then
-					PromoteToAssistant(datas.name);
+					if datas.role == "tank" and datas.name then
+						PromoteToAssistant(datas.name);
+					end
+	
+					if (datas.sign and datas.raidIndex) then
+						SetRaidTarget("raid"..datas.raidIndex, datas.sign) 
+					end
 				end
 			end
 		end
-	end
 	CurrentSetup = org;
 	VRO_MainFrame_Menu_CurrSetup_Text:SetText(org)
 end
 
-function saveCurrentSet(setName)
+function VRO.saveCurrentSet(setName)
 	local newOrg = {}
 	if VRO_SETS == nil then
 		VRO_SETS = {}
 	elseif VRO_SETS[setName] ~= nil then
-		return print(strfor("%s is already taken, pick another name", setName));
+		print(strfor("%s is already taken, pick another name", setName));
+		return false;
 	end
 
-	getCurrentRaid()
-
-	VRO_SETS[setName] = {
-		[1] = {},
-		[2] = {},
-		[3] = {},
-		[4] = {},
-		[5] = {},
-		[6] = {},
-		[7] = {},
-		[8] = {}
-	}
-
 	local groupIndex = {
-        [1] = 0,
-        [2] = 0,
-        [3] = 0,
-        [4] = 0,
-        [5] = 0,
-        [6] = 0,
-        [7] = 0,
-        [8] = 0
+        [1] = 1,
+        [2] = 1,
+        [3] = 1,
+        [4] = 1,
+        [5] = 1,
+        [6] = 1,
+        [7] = 1,
+        [8] = 1
 	}
 
-	for raidIndex=1, MAX_RAID_MEMBERS do
-    	name, _,subgroup, _, _, class, _, _, _ = GetRaidRosterInfo(raidIndex);
-		if name and subgroup and class then 
-			VRO_SETS[setName][subgroup][groupIndex[subgroup]] = {
-				name = name,
-				role = VRO_Members[name].role,
-				class = strlow(class),
-				raidIndex = nil
-			}
-			groupIndex[subgroup] = groupIndex[subgroup] +1;
+	if (VRO_gui.groups) then
+		VRO_SETS[setName] = table.clone(VRO_gui.groups)
+		return true;
+	else
+		return false
+	end
+
+end
+
+--COMPNAME:GROUP:PLAYERID:SIGN:CLASS:ROLE:NAME
+function VRO.SendComp(setName)
+	for group,members in pairs(VRO_SETS[setName]) do
+		for member,datas in pairs(members) do
+			if type(datas) == "table" then
+				local sign = datas.sign or "nil";
+				local class = datas.class or "nil"
+				local role = datas.role or "nil"
+				local name = datas.name or "nil"
+				local pDATA = setName..":"..group..":"..member..":"..sign..":"..class..":"..role..":"..name;
+				VRO.addonCom("sendComp",pDATA)
+				VRO.print(pDATA)
+			end
 		end
 	end
 end
 
-fakeOrg = {
-	[1] = {
-		[1] = {
-			name = "Faismoimal",
-			role = "tank",
-			class = "warrior",
-			raidIndex = nil;
-		},
-		[2] = {
-			name = "Hellfeim",
-			role = "tank",
-			class = "warrior",
-			raidIndex = nil;
-		},
-		[3] = {
-			name = "Lolotiste",
-			role = "tank",
-			class = "warrior",
-			raidIndex = nil;
-		},
-		[4] = {
-			name = "Axoni",
-			role = "tank",
-			class = "warrior",
-			raidIndex = nil;
-		},
-		[5] = {
-			name = "Serge",
-			role = "heal",
-			class = "paladin",
-			raidIndex = nil;
-		}
-	},
-	[2] = {
-		[1] = {
-			name = "Entitane",
-			role = "melee",
-			class = "warrior",
-			raidIndex = nil;
-		},
-		[2] = {
-			name = "Olgrym",
-			role = "melee",
-			class = "warrior",
-			raidIndex = nil;
-		},
-		[3] = {
-			name = "Raggsockan",
-			role = "melee",
-			class = "rogue",
-			raidIndex = nil;
-		},
-		[4] = {
-			name = "Lrox",
-			role = "melee",
-			class = "rogue",
-			raidIndex = nil;
-		},
-		[5] = {
-			name = "Oeildetaupe",
-			role = "melee",
-			class = "hunter",
-			raidIndex = nil;
-		}
-	},
-	[3] = {
-		[1] = {
-			name = "Edleweiss",
-			role = "melee",
-			class = "warrior",
-			raidIndex = nil;
-		},
-		[2] = {
-			name = "Ravengath",
-			role = "melee",
-			class = "rogue",
-			raidIndex = nil;
-		},
-		[3] = {
-			name = "Triana",
-			role = "melee",
-			class = "rogue",
-			raidIndex = nil;
-		},
-		[4] = {
-			name = "Durïll",
-			role = "melee",
-			class = "warrior",
-			raidIndex = nil;
-		},
-		[5] = {
-			name = "Kaulder",
-			role = "melee",
-			class = "hunter",
-			raidIndex = nil;
-		}
-	},
-	[4] = {
-		[1] = {
-			name = "Pøløx",
-			role = "melee",
-			class = "warrior",
-			raidIndex = nil;
-		},
-		[2] = {
-			name = "Agaria",
-			role = "melee",
-			class = "rogue",
-			raidIndex = nil;
-		},
-		[3] = {
-			name = "Fabibi",
-			role = "melee",
-			class = "warrior",
-			raidIndex = nil;
-		},
-		[4] = {
-			name = "Velocity",
-			role = "melee",
-			class = "hunter",
-			raidIndex = nil;
-		},
-		[5] = {
-			name = "Krider",
-			role = "melee",
-			class = "hunter",
-			raidIndex = nil;
-		}
-	},
-	[5] = {
-		[1] = {
-			name = "Kheldrill",
-			role = "caster",
-			class = "mage",
-			raidIndex = nil;
-		},
-		[2] = {
-			name = "Zaerah",
-			role = "caster",
-			class = "mage",
-			raidIndex = nil;
-		},
-		[3] = {
-			name = "Gigaleau",
-			role = "caster",
-			class = "mage",
-			raidIndex = nil;
-		},
-		[4] = {
-			name = "Sanplo",
-			role = "caster",
-			class = "mage",
-			raidIndex = nil;
-		},
-		[5] = {
-			name = "Patamilka",
-			role = "caster",
-			class = "druid",
-			raidIndex = nil;
-		}
-	},
-	[6] = {
-		[1] = {
-			name = "Uriah",
-			role = "caster",
-			class = "warlock",
-			raidIndex = nil;
-		},
-		[2] = {
-			name = "Peems",
-			role = "caster",
-			class = "warlock",
-			raidIndex = nil;
-		},
-		[3] = {
-			name = "Mèlba",
-			role = "caster",
-			class = "warlock",
-			raidIndex = nil;
-		},
-		[4] = {
-			name = "Poldark",
-			role = "caster",
-			class = "priest",
-			raidIndex = nil;
-		},
-		[5] = {
-			name = nil,
-			role = "caster",
-			class = "warlock",
-			raidIndex = nil;
-		}
-	},
-	[7] = {
-		[1] = {
-			name = "Azyzz",
-			role = "heal",
-			class = "paladin",
-			raidIndex = nil;
-		},
-		[2] = {
-			name = "Alhealce",
-			role = "heal",
-			class = "priest",
-			raidIndex = nil;
-		},
-		[3] = {
-			name = "Nawa",
-			role = "heal",
-			class = "druid",
-			raidIndex = nil;
-		},
-		[4] = {
-			name = "Barbiboule",
-			role = "heal",
-			class = "priest",
-			raidIndex = nil;
-		},
-		[5] = {
-			name = "Parsifalor",
-			role = "heal",
-			class = "paladin",
-			raidIndex = nil;
-		}
-	},
-	[8] = {
-		[1] = {
-			name = "Æthereal",
-			role = "heal",
-			class = "druid",
-			raidIndex = nil;
-		},
-		[2] = {
-			name = "Healkill",
-			role = "heal",
-			class = "priest",
-			raidIndex = nil;
-		},
-		[3] = {
-			name = "Aééris",
-			role = "heal",
-			class = "druid",
-			raidIndex = nil;
-		},
-		[4] = {
-			name = "Rahjan",
-			role = "heal",
-			class = "priest",
-			raidIndex = nil;
-		},
-		[5] = {
-			name = "Heqat",
-			role = "healer",
-			class = "paladin",
-			raidIndex = nil;
-		}
-	}
-}
+function VRO.GetHealForLoatheb()
+	local healers = {}
+	for groupe,members in pairs(VRO.getCurrentRaid()) do
+		for member,data in pairs(members) do
+			if type(data) == "table" then
+				if data.role == "heal" then
+					tinsert(healers, data.name)
+				end
+			end
+		end
+	end
+
+	local string = ""
+	for idx,name in pairs(healers) do
+		string = string..name
+		if healers[idx+1] then
+			string = string.." => "
+		end
+	end
+
+	SendChatMessage(string, "RAID_WARNING");
+	SendChatMessage(string, "RAID");
+end
