@@ -30,6 +30,15 @@ tinsert = table.insert;
 GetRaidRosterInfo = GetRaidRosterInfo;
 SwapRaidSubgroup = SwapRaidSubgroup;
 
+VRO_CONF = VRO_CONF;
+if not (VRO_CONF) then
+	VRO_CONF = {}
+end
+
+if not VRO_CONF.show then
+	VRO_CONF.show = true
+end
+
 VRO.syncPrefix = "VRO_Sync"
 
 VRO_gui = {}
@@ -111,7 +120,7 @@ end
 -- 'delimiter'  [string]        characters that will be interpreted as delimiter
 --                              characters (bytes) in the string.
 -- 'subject'    [string]        String to split.
--- return:      [list]          array.
+-- return:      [list]         s array.
 function strsplit(delimiter, subject)
 	if not subject then return nil end
 	local delimiter, fields = delimiter or ":", {}
@@ -130,6 +139,7 @@ VRO_MainFrame:SetHeight(340)
 VRO_MainFrame:SetScale(1.25)
 VRO_MainFrame:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
 VRO_MainFrame:SetBackdropColor(0,0,0,0.7);
+if VRO_CONF.show then VRO_MainFrame:Show() else VRO_MainFrame:Hide() end;
 
 VRO_MainFrame_Title = CreateFrame("Frame", "VRO_MainFrame_Title", VRO_MainFrame);
 VRO_MainFrame_Title:SetPoint("TOP", "VRO_MainFrame", 0, -0);
@@ -157,7 +167,7 @@ VRO_MainFrame_Save:SetHeight(20);
 VRO_MainFrame_Save:SetWidth(100);
 VRO_MainFrame_Save:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
 VRO_MainFrame_Save:SetBackdropColor(0,0,0,0.7);
-VRO_MainFrame_Save:Hide();
+VRO_MainFrame_Save:Show();
 
 VRO_MainFrame_Save.EditBox = CreateFrame("EditBox", "VRO_MainFrame_Save_EditBox", VRO_MainFrame_Save)
 VRO_MainFrame_Save.EditBox:SetPoint("TOPLEFT", VRO_MainFrame_Save, "TOPLEFT", 2.5,-2.5);
@@ -202,28 +212,40 @@ VRO_MainFrame_Save.Button:SetScript("OnClick", function ()
 		VRO_MainFrame_Save.Button:Hide()
 		VRO_MainFrame_Save.EditBox:Hide()
 		VRO_MainFrame_Save.editButton:Show()
+		VRO_MainFrame_Save.delButton:Show()
+		VRO.SetEditable(false);
 	end
 end)
 
 VRO_MainFrame_Save.editButton = CreateFrame("Button", "VRO_MainFrame_Save_editButton", VRO_MainFrame_Save);
-VRO_MainFrame_Save.editButton:SetText("Apply Set");
 VRO_MainFrame_Save.editButton:SetFont("Fonts\\FRIZQT__.TTF", 8)
 VRO_MainFrame_Save.editButton:SetTextColor(1, 1, 1, 1);
 VRO_MainFrame_Save.editButton:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
 VRO_MainFrame_Save.editButton:SetBackdropColor(0,0,0,0.7);
-VRO_MainFrame_Save.editButton:SetAllPoints(VRO_MainFrame_Save)
+VRO_MainFrame_Save.editButton:SetAllPoints(VRO_MainFrame_Save.EditBox)
 VRO_MainFrame_Save.editButton:SetText("EDIT")
 VRO_MainFrame_Save.editButton:SetFrameStrata("DIALOG")
 VRO_MainFrame_Save.editButton:RegisterForClicks("LeftButtonUp", "RightButtonUp");
 VRO_MainFrame_Save.editButton:SetScript("OnClick", function () 
-    this:Hide()
+	this:Hide()
+	VRO_MainFrame_Save.delButton:Hide()
     VRO_MainFrame_Save.Button:Show()
     VRO_MainFrame_Save.EditBox:Show()
     VRO.SetEditable(true);
 end)
 
--- Button edit to show save stuff and make editable everything
--- on current make player frames draggable to send swap player command
+VRO_MainFrame_Save.delButton = CreateFrame("Button", "VRO_MainFrame_Save_editButton", VRO_MainFrame_Save);
+VRO_MainFrame_Save.delButton:SetFont("Fonts\\FRIZQT__.TTF", 8)
+VRO_MainFrame_Save.delButton:SetTextColor(1, 1, 1, 1);
+VRO_MainFrame_Save.delButton:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
+VRO_MainFrame_Save.delButton:SetBackdropColor(0,0,0,0.7);
+VRO_MainFrame_Save.delButton:SetAllPoints(VRO_MainFrame_Save.Button)
+VRO_MainFrame_Save.delButton:SetText("DEL")
+VRO_MainFrame_Save.delButton:SetFrameStrata("DIALOG")
+VRO_MainFrame_Save.delButton:RegisterForClicks("LeftButtonUp", "RightButtonUp");
+VRO_MainFrame_Save.delButton:SetScript("OnClick", function () 
+    VRO.delCurrentSet();
+end)
 
 VRO_MainFrame_Menu_SetsDD = CreateFrame("Frame", "VRO_MainFrame_Menu_SetsDD", VRO_MainFrame, "UIDropDownMenuTemplate")
 UIDropDownMenu_Initialize(VRO_MainFrame_Menu_SetsDD, function()
@@ -340,28 +362,43 @@ for group = 1, 8 do
 		VRO_MainFrame_Content_group[group].player[plyr]:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
 		VRO_MainFrame_Content_group[group].player[plyr]:SetBackdropColor(1,1,1,0.25);
 		VRO_MainFrame_Content_group[group].player[plyr]:SetID(group*10+plyr);
-		VRO_MainFrame_Content_group[group].player[plyr]:EnableMouse(true);
+		VRO_MainFrame_Content_group[group].player[plyr]:EnableMouse(false);
 		VRO_MainFrame_Content_group[group].player[plyr]:SetHeight(VRO_MainFrame_Content_group[group]:GetHeight()/6)
+		VRO_MainFrame_Content_group[group].player[plyr]:SetScript("OnDragStart", function() this:StartMoving() end);
 		VRO_MainFrame_Content_group[group].player[plyr]:SetScript("OnDragStop", function() 
-			local frame = GetMouseFocus();
+			local OGgp, OGpl;
 			OGgp = tonumber(string.sub(tostring(this:GetID()),1,1));
 			OGpl = tonumber(string.sub(tostring(this:GetID()),2,2));
 			-- if the frame we move doesn't have a player we just don't do a thing
 			if not this.nameBox:GetText() or this.nameBox:GetText() == "" then return end;
 			local movedPlayer = this.nameBox:GetText();
 
-			TARgp = tonumber(string.sub(tostring(frame:GetID()),1,1));
-			TARpl = tonumber(string.sub(tostring(frame:GetID()),2,2));
-			VRO.print(TARgp.." "..TARpl)
-			-- We should have the right datas or we stop here
-			if (TARgp > 8 or TARgp < 1 or TARpl > 5 or TARpl < 1 or not TARgp or not TARpl) then return end;
-
-			-- If We get a name then we should swap, if we don't get any name then we just move the player
-			if (VRO_MainFrame_Content_group[TARgp].player[TARpl].nameBox:GetText() and VRO_MainFrame_Content_group[TARgp].player[TARpl].nameBox:GetText() ~= "") then
-				VRO.SwapByName(VRO_MainFrame_Content_group[TARgp].player[TARpl].nameBox:GetText(), movedPlayer);
-			else
-				VRO.MoveByName(movedPlayer, TARgp)
+			local TARgp, TARpl;
+			for gp = 1,8 do
+				for pl = 1,5 do
+					if (VRO_MainFrame_Content_group[gp].player[pl]:GetName() ~= this:GetName() and MouseIsOver(VRO_MainFrame_Content_group[gp].player[pl])) then
+						TARgp = tonumber(string.sub(tostring(VRO_MainFrame_Content_group[gp].player[pl]:GetID()),1,1));
+						TARpl = tonumber(string.sub(tostring(VRO_MainFrame_Content_group[gp].player[pl]:GetID()),2,2));
+					end
+				end
 			end
+
+			if TARgp and TARpl then
+				-- We should have the right datas or we stop here
+				if (TARgp > 8 or TARgp < 1 or TARpl > 5 or TARpl < 1) then return end;
+
+				-- If We get a name then we should swap, if we don't get any name then we just move the player
+				if (VRO_MainFrame_Content_group[TARgp].player[TARpl].nameBox:GetText() and VRO_MainFrame_Content_group[TARgp].player[TARpl].nameBox:GetText() ~= "") then
+					VRO.SwapByName(VRO_MainFrame_Content_group[TARgp].player[TARpl].nameBox:GetText(), movedPlayer);
+				else
+					VRO.MoveByName(movedPlayer, TARgp)
+				end
+			end
+
+			local offst = OGpl*(VRO_MainFrame_Content_group[OGgp]:GetHeight()/6)
+			this:SetPoint("TOPLEFT",VRO_MainFrame_Content_group[OGgp],"TOPLEFT", 0, -offst)
+			this:StopMovingOrSizing();
+			this:SetUserPlaced(false);
 		end)
 		VRO_MainFrame_Content_group[group].player[plyr].sign = CreateFrame("Button", "VRO_MainFrame_Content_G"..group.."_P"..plyr.."_SIGN", VRO_MainFrame_Content_group[group].player[plyr]);
 		VRO_MainFrame_Content_group[group].player[plyr].sign:SetID(group*10+plyr);
@@ -581,13 +618,15 @@ end
 
 ---------------------
 VRO_MainFrame:RegisterEvent("CHAT_MSG_ADDON");
-VRO_MainFrame:RegisterEvent("CHAT_MSG_ADDON"); -- TODO
-
+VRO_MainFrame:RegisterEvent("RAID_ROSTER_UPDATE");
+VRO_MainFrame:RegisterAllEvents();
 VRO_MainFrame:SetScript("OnEvent", function() 
 	if (event == "CHAT_MSG_ADDON" and arg1 == VRO.syncPrefix) then
 		VRO.HandleAddonMSG(arg4, arg2);
+	elseif (event == "RAID_ROSTER_UPDATE" and VRO_gui.selected == "Current") then
+		VRO.loadSetInGUI("Current")
 	end
-end)
+ end)
 -----FUNCTIONS-------
 
 -- SYNC STUFF
@@ -606,12 +645,15 @@ function VRO.HandleAddonMSG(sender, data)
 
 	if cmd == "promote" then
 		PromoteToAssistant(datas)
+	--[[ 
+		Well You can do this even if you are not the leader...
 	elseif cmd == "swap" then
 	    dataSplit = strsplit(" ", datas)
 	    VRO.SwapByName(dataSplit[1],dataSplit[2])
 	elseif cmd == "move" then
 	    dataSplit = strsplit(" ", datas)
-	    VRO.MoveByName(dataSplit[1], dataSplit[2])
+		VRO.MoveByName(dataSplit[1], dataSplit[2])
+	]]
 	elseif cmd == "sendComp" then
 		-- We are gonna recieve the comp with one msg by player
 		-- message looks like this => COMPNAME:GROUP:PLAYERID:SIGN:CLASS:ROLE:NAME
@@ -650,9 +692,13 @@ function VRO.SetEditable(editable)
 			if editable then
 				VRO_MainFrame_Content_group[group].player[plyr].sign:Enable()
 				VRO_MainFrame_Content_group[group].player[plyr].classIcon:Enable()
+				VRO_MainFrame_Content_group[group].player[plyr]:RegisterForDrag();
+				VRO_MainFrame_Content_group[group].player[plyr]:SetMovable(false);
 			else
 				VRO_MainFrame_Content_group[group].player[plyr].sign:Disable()
 				VRO_MainFrame_Content_group[group].player[plyr].classIcon:Disable()
+				VRO_MainFrame_Content_group[group].player[plyr]:RegisterForDrag("LeftButton");
+				VRO_MainFrame_Content_group[group].player[plyr]:SetMovable(true);
 			end
 			VRO_MainFrame_Content_group[group].player[plyr].nameBox:EnableKeyboard(editable)
 			VRO_MainFrame_Content_group[group].player[plyr].nameBox:EnableMouse(editable)
@@ -679,6 +725,20 @@ function VRO.PlayerIsPromoted(name)
 	return false;
 end
 
+function VRO.RemoveByName(pName)
+	local raid = VRO.getCurrentRaid()
+   
+    for group,members in pairs(raid) do
+        for member,datas in pairs(members) do
+            if strlow(datas.name) == strlow(pName) then idx = datas.raidIndex end
+        end
+    end
+    
+	if idx then 
+		UninviteFromRaid(idx) 
+	end
+end
+
 function VRO.SwapByName(name1, name2)
     local idx1, idx2;
     for group,members in pairs(VRO.getCurrentRaid()) do
@@ -691,7 +751,6 @@ function VRO.SwapByName(name1, name2)
     
     if idx1 and idx2 then
 		SwapRaidSubgroup(idx1, idx2)
-		if VRO_gui.selected == "Current" then VRO.loadSetInGUI("Current") end;
 	end
 end
 
@@ -707,7 +766,6 @@ function VRO.MoveByName(pName, group)
     
 	if idx then 
 		SetRaidSubgroup(idx, group) 
-		if VRO_gui.selected == "Current" then VRO.loadSetInGUI("Current") end
 	end
 end
 
@@ -769,7 +827,6 @@ function VRO.setSign(texture, signID)
 end
 
 function VRO.loadSetInGUI(set)
-	VRO.print(strfor("Loading Set [%s]",set))
 	VRO.WypeGui();
 	set = set or "Current";
 
@@ -778,12 +835,10 @@ function VRO.loadSetInGUI(set)
 		VRO_gui.groups = VRO.getCurrentRaid()
 	else
 		VRO_gui.groups = table.clone(VRO_SETS[set])
-		VRO_MainFrame_Save:Show();
 	end
 
 	for group=1,8 do
 		for player=1,5 do
-			VRO.print(group.." "..player)
 			if (VRO_gui.groups[group] and VRO_gui.groups[group][player] and type(VRO_gui.groups[group][player]) == "table") then
 				if VRO_gui.groups[group][player].sign then
 					VRO.setSign(VRO_MainFrame_Content_group[group].player[player].sign.texture, VRO_gui.groups[group][player].sign)
@@ -802,13 +857,27 @@ function VRO.loadSetInGUI(set)
 					VRO_MainFrame_Content_group[group].player[player].role:SetText(VRO_gui.groups[group][player].role)
 				end
 			end
-			if set == "Current" then
-				if (VRO_MainFrame_Content_group[group].player[player].nameBox:GetText() and VRO_MainFrame_Content_group[group].player[player].nameBox:GetText() ~= "") then
+			if set == "Current" and (IsRaidLeader() or IsRaidOfficer()) then
+				if (VRO_MainFrame_Content_group[group].player[player].nameBox:GetText() ~= nil and VRO_MainFrame_Content_group[group].player[player].nameBox:GetText() ~= "") then
 					VRO_MainFrame_Content_group[group].player[player]:RegisterForDrag("LeftButton");
+					VRO_MainFrame_Content_group[group].player[player]:EnableMouse(true);
+					VRO_MainFrame_Content_group[group].player[player]:SetMovable(true);
+				else
+					VRO_MainFrame_Content_group[group].player[player]:RegisterForDrag();
+					VRO_MainFrame_Content_group[group].player[player]:SetMovable(false);
+					VRO_MainFrame_Content_group[group].player[player]:EnableMouse(false);
 				end
 			end
 		end
 	end
+
+	VRO_MainFrame_Save.EditBox:SetText("")
+	VRO_MainFrame_Save.EditBox:ClearFocus()
+	VRO_MainFrame_Save.Button:Hide()
+	VRO_MainFrame_Save.EditBox:Hide()
+	VRO_MainFrame_Save.editButton:Show()
+	VRO_MainFrame_Save.delButton:Show()
+	VRO.SetEditable(false);
 	
 end
 --------------------------
@@ -1032,6 +1101,14 @@ function sortRaid(org)
 	VRO_MainFrame_Menu_CurrSetup_Text:SetText(org)
 end
 
+function VRO.delCurrentSet()
+	if VRO_gui.selected == "Current" then return end
+
+	VRO_SETS[VRO_gui.selected] = nil;
+	VRO.WypeGui();
+	UIDropDownMenu_SetSelectedName(VRO_MainFrame_Menu_SetsDD, nil, nil)
+end
+
 function VRO.saveCurrentSet(setName)
 	local newOrg = {}
 	if VRO_SETS == nil then
@@ -1106,3 +1183,29 @@ function VRO.GetHealForLoatheb(force)
     	SendChatMessage(VRO.Healerstring, "RAID");
 	end
 end
+
+SLASH_VRO1 = "/rc"
+SLASH_VRO2 = "/vro"
+
+local function cmdHandle(msg)
+	strsplit(" ", msg)
+	local cmd = strsplit(" ", msg)[1]
+	local arg = strsplit(" ", msg)[2]
+	if (cmd == "promote") then
+		PromoteToAssistant(arg)
+	elseif (cmd == "kick") then
+		VRO.RemoveByName(arg)
+	elseif (cmd == "loatheb") then
+		VRO.GetHealForLoatheb()
+	elseif (cmd == "show") then
+		VRO_CONF.show = true;
+		VRO_MainFrame:Show();
+	elseif (cmd == "hide") then
+		VRO_CONF.show = false;
+		VRO_MainFrame:Hide();	
+	else
+		VRO.print("Commands :\n/vro promote NAME\n/vro kick NAME\n/vro loatheb\n/vro show\n/vro hide");
+	end
+end
+
+SlashCmdList["VRO"] = cmdHandle
