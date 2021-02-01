@@ -1105,9 +1105,6 @@ function VRO.saveCurrentSet(setName)
 	local newOrg = {}
 	if VRO_SETS == nil then
 		VRO_SETS = {}
-	elseif VRO_SETS[setName] ~= nil then
-		print(strfor("%s is already taken, pick another name", setName));
-		return false;
 	end
 
 	local groupIndex = {
