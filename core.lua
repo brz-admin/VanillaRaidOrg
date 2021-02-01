@@ -206,6 +206,7 @@ VRO_MainFrame_Save.Button:Hide();
 VRO_MainFrame_Save.Button:SetScript("OnClick", function () 
 	if VRO.saveCurrentSet(VRO_MainFrame_Save.EditBox:GetText()) then
 		VRO_gui.selected = VRO_MainFrame_Save.EditBox:GetText()
+		VRO.saveCurrentSet(VRO_MainFrame_Save.EditBox:GetText())
 		UIDropDownMenu_SetSelectedName(VRO_MainFrame_Menu_SetsDD, VRO_MainFrame_Save.EditBox:GetText(), VRO_MainFrame_Save.EditBox:GetText())
 		VRO_MainFrame_Save.EditBox:SetText("")
 		VRO_MainFrame_Save.EditBox:ClearFocus()
@@ -645,15 +646,6 @@ function VRO.HandleAddonMSG(sender, data)
 
 	if cmd == "promote" then
 		PromoteToAssistant(datas)
-	--[[ 
-		Well You can do this even if you are not the leader...
-	elseif cmd == "swap" then
-	    dataSplit = strsplit(" ", datas)
-	    VRO.SwapByName(dataSplit[1],dataSplit[2])
-	elseif cmd == "move" then
-	    dataSplit = strsplit(" ", datas)
-		VRO.MoveByName(dataSplit[1], dataSplit[2])
-	]]
 	elseif cmd == "sendComp" then
 		-- We are gonna recieve the comp with one msg by player
 		-- message looks like this => COMPNAME:GROUP:PLAYERID:SIGN:CLASS:ROLE:NAME
