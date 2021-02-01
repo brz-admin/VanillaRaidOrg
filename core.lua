@@ -78,7 +78,7 @@ local function has_value (tab, val)
     return false
 end
 
-local function tprint(tab)
+function VRO.tprint(tab)
 	for key, value in pairs(tab) do
 		dLog(key.."="..value, true);
 	end
@@ -206,7 +206,6 @@ VRO_MainFrame_Save.Button:Hide();
 VRO_MainFrame_Save.Button:SetScript("OnClick", function () 
 	if VRO.saveCurrentSet(VRO_MainFrame_Save.EditBox:GetText()) then
 		VRO_gui.selected = VRO_MainFrame_Save.EditBox:GetText()
-		VRO.saveCurrentSet(VRO_MainFrame_Save.EditBox:GetText())
 		UIDropDownMenu_SetSelectedName(VRO_MainFrame_Menu_SetsDD, VRO_MainFrame_Save.EditBox:GetText(), VRO_MainFrame_Save.EditBox:GetText())
 		VRO_MainFrame_Save.EditBox:SetText("")
 		VRO_MainFrame_Save.EditBox:ClearFocus()
@@ -620,7 +619,6 @@ end
 ---------------------
 VRO_MainFrame:RegisterEvent("CHAT_MSG_ADDON");
 VRO_MainFrame:RegisterEvent("RAID_ROSTER_UPDATE");
-VRO_MainFrame:RegisterAllEvents();
 VRO_MainFrame:SetScript("OnEvent", function() 
 	if (event == "CHAT_MSG_ADDON" and arg1 == VRO.syncPrefix) then
 		VRO.HandleAddonMSG(arg4, arg2);
@@ -826,7 +824,21 @@ function VRO.loadSetInGUI(set)
 	if set == "Current" then
 		VRO_gui.groups = VRO.getCurrentRaid()
 	else
-		VRO_gui.groups = table.clone(VRO_SETS[set])
+		VRO_gui.groups = {}
+		for g=1,8 do
+			if (VRO_SETS[set][g]) then
+				VRO_gui.groups[g] = {}
+				for p=1,5 do
+					if (VRO_SETS[set][g][p]) then
+						VRO_gui.groups[g][p] = {}
+						VRO_gui.groups[g][p].sign = VRO_SETS[set][g][p].sign
+						VRO_gui.groups[g][p].class = VRO_SETS[set][g][p].class
+						VRO_gui.groups[g][p].name = VRO_SETS[set][g][p].name
+						VRO_gui.groups[g][p].role = VRO_SETS[set][g][p].role
+					end
+				end
+			end
+		end
 	end
 
 	for group=1,8 do
@@ -973,7 +985,6 @@ local function getUnAssignedPlayerInGroup(group)
 end
 
 local function getUAPlayerWithRoleAndClass(role, class, raid)
-	dLog(strfor("getUAPlayerWithRoleAndClass(%s, %s)", role, class or "no class"))
 	local correctRoleidx = nil;
 	for groupe,members in pairs(raid) do
 		for member,data in pairs(members) do
@@ -1107,20 +1118,23 @@ function VRO.saveCurrentSet(setName)
 		VRO_SETS = {}
 	end
 
-	local groupIndex = {
-        [1] = 1,
-        [2] = 1,
-        [3] = 1,
-        [4] = 1,
-        [5] = 1,
-        [6] = 1,
-        [7] = 1,
-        [8] = 1
-	}
-
 	if (VRO_gui.groups) then
-		VRO_SETS[setName] = table.clone(VRO_gui.groups)
-		return true;
+		VRO_SETS[setName] = {}
+		for g =1,8 do
+			if VRO_gui.groups[g] then
+				VRO_SETS[setName][g] = {}
+				for p=1,5 do
+					if VRO_gui.groups[g][p] then
+						VRO_SETS[setName][g][p] = {}
+						VRO_SETS[setName][g][p].sign = VRO_gui.groups[g][p].sign or nil
+						VRO_SETS[setName][g][p].class = VRO_gui.groups[g][p].class or nil
+						VRO_SETS[setName][g][p].name = VRO_gui.groups[g][p].name or nil
+						VRO_SETS[setName][g][p].role = VRO_gui.groups[g][p].role or nil
+					end
+				end
+			end
+		end
+		return true
 	else
 		return false
 	end
