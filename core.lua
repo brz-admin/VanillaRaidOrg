@@ -103,7 +103,7 @@ local function StripTextures(frame, hide, layer)
 end
 
 function table.clone(org)
-	return {table.unpack(org)}
+	return {unpack(org)}
 end
 
 -- [ strsplit ]
@@ -169,6 +169,7 @@ VRO_MainFrame_Save.EditBox:SetAutoFocus(false)
 VRO_MainFrame_Save.EditBox:SetMaxLetters(20)
 VRO_MainFrame_Save.EditBox:SetFontObject(GameFontWhite)
 VRO_MainFrame_Save.EditBox:SetFont("Fonts\\FRIZQT__.TTF", 8)
+VRO_MainFrame_Save.EditBox:Hide()
 VRO_MainFrame_Save.EditBox:SetScript("OnEnterPressed", function() 
 	VRO_MainFrame_Save.Button:Click();
 end)
@@ -191,6 +192,7 @@ VRO_MainFrame_Save.Button:SetHeight(15)
 VRO_MainFrame_Save.Button:SetText("Save")
 VRO_MainFrame_Save.Button:SetFrameStrata("DIALOG")
 VRO_MainFrame_Save.Button:RegisterForClicks("LeftButtonUp", "RightButtonUp");
+VRO_MainFrame_Save.Button:Hide();
 VRO_MainFrame_Save.Button:SetScript("OnClick", function () 
 	if VRO.saveCurrentSet(VRO_MainFrame_Save.EditBox:GetText()) then
 		VRO_gui.selected = VRO_MainFrame_Save.EditBox:GetText()
@@ -230,7 +232,7 @@ UIDropDownMenu_Initialize(VRO_MainFrame_Menu_SetsDD, function()
 		checked=VRO_gui.selected == "Current",
 		func = function ()
 			VRO_gui.selected = "Current"
-			loadSetInGUI("Current")
+			VRO.loadSetInGUI("Current")
 			UIDropDownMenu_SetSelectedName(VRO_MainFrame_Menu_SetsDD, "Current", "Current")
 		end
 	})
@@ -242,7 +244,7 @@ UIDropDownMenu_Initialize(VRO_MainFrame_Menu_SetsDD, function()
 				arg1 = set,
 				func = function (set)
 					VRO_gui.selected = set
-					loadSetInGUI(set)
+					VRO.loadSetInGUI(set)
 					UIDropDownMenu_SetSelectedName(VRO_MainFrame_Menu_SetsDD, set, set)
 				end
 			})
@@ -337,8 +339,30 @@ for group = 1, 8 do
 		VRO_MainFrame_Content_group[group].player[plyr]:SetPoint("RIGHT",VRO_MainFrame_Content_group[group],"RIGHT", 0, 0)
 		VRO_MainFrame_Content_group[group].player[plyr]:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
 		VRO_MainFrame_Content_group[group].player[plyr]:SetBackdropColor(1,1,1,0.25);
+		VRO_MainFrame_Content_group[group].player[plyr]:SetID(group*10+plyr);
+		VRO_MainFrame_Content_group[group].player[plyr]:EnableMouse(true);
 		VRO_MainFrame_Content_group[group].player[plyr]:SetHeight(VRO_MainFrame_Content_group[group]:GetHeight()/6)
+		VRO_MainFrame_Content_group[group].player[plyr]:SetScript("OnDragStop", function() 
+			local frame = GetMouseFocus();
+			OGgp = tonumber(string.sub(tostring(this:GetID()),1,1));
+			OGpl = tonumber(string.sub(tostring(this:GetID()),2,2));
+			-- if the frame we move doesn't have a player we just don't do a thing
+			if not this.nameBox:GetText() or this.nameBox:GetText() == "" then return end;
+			local movedPlayer = this.nameBox:GetText();
 
+			TARgp = tonumber(string.sub(tostring(frame:GetID()),1,1));
+			TARpl = tonumber(string.sub(tostring(frame:GetID()),2,2));
+			VRO.print(TARgp.." "..TARpl)
+			-- We should have the right datas or we stop here
+			if (TARgp > 8 or TARgp < 1 or TARpl > 5 or TARpl < 1 or not TARgp or not TARpl) then return end;
+
+			-- If We get a name then we should swap, if we don't get any name then we just move the player
+			if (VRO_MainFrame_Content_group[TARgp].player[TARpl].nameBox:GetText() and VRO_MainFrame_Content_group[TARgp].player[TARpl].nameBox:GetText() ~= "") then
+				VRO.SwapByName(VRO_MainFrame_Content_group[TARgp].player[TARpl].nameBox:GetText(), movedPlayer);
+			else
+				VRO.MoveByName(movedPlayer, TARgp)
+			end
+		end)
 		VRO_MainFrame_Content_group[group].player[plyr].sign = CreateFrame("Button", "VRO_MainFrame_Content_G"..group.."_P"..plyr.."_SIGN", VRO_MainFrame_Content_group[group].player[plyr]);
 		VRO_MainFrame_Content_group[group].player[plyr].sign:SetID(group*10+plyr);
 		VRO_MainFrame_Content_group[group].player[plyr].sign:RegisterForClicks("LeftButtonDown");
@@ -514,48 +538,50 @@ for group = 1, 8 do
 		VRO_MainFrame_Content_group[group].player[plyr].role:SetBackdropColor(0,0,0,0.25);
 		VRO_MainFrame_Content_group[group].player[plyr].role:SetFont("Fonts\\FRIZQT__.TTF", 8)
 		VRO_MainFrame_Content_group[group].player[plyr].role:SetScript("OnClick", function() 
-		                			gp = tonumber(string.sub(tostring(this:GetID()),1,1));
-		                			pl = tonumber(string.sub(tostring(this:GetID()),2,2));
-		                
-		                			if (not VRO_gui.groups[gp]) then
-		                				VRO_gui.groups[gp] = {}
-		                			end
-		                
-		                			if (not VRO_gui.groups[gp][pl]) then
-		                				VRO_gui.groups[gp][pl] = {}
-		                			end
-		                
-		                			if (VRO_gui.groups[gp][pl].role) then
-		                				if (VRO_gui.groups[gp][pl].role == "tank") then
-		                					this:SetText("melee")
-		                					VRO_gui.groups[gp][pl].role = "melee"
-		                				elseif (VRO_gui.groups[gp][pl].role == "melee") then
-		                					this:SetText("range")
-		                					VRO_gui.groups[gp][pl].role = "range"
-		                				elseif (VRO_gui.groups[gp][pl].role == "range") then
-		                					this:SetText("caster")
-		                					VRO_gui.groups[gp][pl].role = "caster"
-		                				elseif (VRO_gui.groups[gp][pl].role == "caster") then
-		                					this:SetText("heal")
-		                					VRO_gui.groups[gp][pl].role = "heal"
-		                				else
-		                					this:SetText("")
-		                					VRO_gui.groups[gp][pl].role = nil
-		                				end
-		                			else
-		                				VRO_gui.groups[gp][pl].role = "tank"
-		                				this:SetText("tank")
-		                			end
-		                
-		                			if VRO_gui.groups[gp][pl].name and VRO_Members[VRO_gui.groups[gp][pl].name] then
-		                				VRO_Members[VRO_gui.groups[gp][pl].name].role = VRO_gui.groups[gp][pl].role
-		                			end
-		                		end)
+			gp = tonumber(string.sub(tostring(this:GetID()),1,1));
+			pl = tonumber(string.sub(tostring(this:GetID()),2,2));
+
+			if (not VRO_gui.groups[gp]) then
+				VRO_gui.groups[gp] = {}
+			end
+
+			if (not VRO_gui.groups[gp][pl]) then
+				VRO_gui.groups[gp][pl] = {}
+			end
+
+			if (VRO_gui.groups[gp][pl].role) then
+				if (VRO_gui.groups[gp][pl].role == "tank") then
+					this:SetText("melee")
+					VRO_gui.groups[gp][pl].role = "melee"
+				elseif (VRO_gui.groups[gp][pl].role == "melee") then
+					this:SetText("range")
+					VRO_gui.groups[gp][pl].role = "range"
+				elseif (VRO_gui.groups[gp][pl].role == "range") then
+					this:SetText("caster")
+					VRO_gui.groups[gp][pl].role = "caster"
+				elseif (VRO_gui.groups[gp][pl].role == "caster") then
+					this:SetText("heal")
+					VRO_gui.groups[gp][pl].role = "heal"
+				else
+					this:SetText("")
+					VRO_gui.groups[gp][pl].role = nil
+				end
+			else
+				VRO_gui.groups[gp][pl].role = "tank"
+				this:SetText("tank")
+			end
+
+			if VRO_gui.groups[gp][pl].name and VRO_Members[VRO_gui.groups[gp][pl].name] then
+				VRO_Members[VRO_gui.groups[gp][pl].name].role = VRO_gui.groups[gp][pl].role
+			end
+		end)
 	end
 end
-VRO.SetEditable(false)
+
+
 ---------------------
 VRO_MainFrame:RegisterEvent("CHAT_MSG_ADDON");
+VRO_MainFrame:RegisterEvent("CHAT_MSG_ADDON"); -- TODO
 
 VRO_MainFrame:SetScript("OnEvent", function() 
 	if (event == "CHAT_MSG_ADDON" and arg1 == VRO.syncPrefix) then
@@ -617,17 +643,23 @@ function VRO.HandleAddonMSG(sender, data)
 end
 
 function VRO.SetEditable(editable)
-    editable = editable or true;
+    --editable = editable or true;
 
     for group=1,8 do
-        for plyr=1,5 do
-            VRO_MainFrame_Content_group[group].player[plyr].role:SetEnabled(editable)
-            VRO_MainFrame_Content_group[group].player[plyr].sign:SetEnabled(editable)
-            VRO_MainFrame_Content_group[group].player[plyr].nameBox:SetEnabled(editable)
-            VRO_MainFrame_Content_group[group].player[plyr].classIcon:SetEnabled(editable)
+		for plyr=1,5 do
+			if editable then
+				VRO_MainFrame_Content_group[group].player[plyr].sign:Enable()
+				VRO_MainFrame_Content_group[group].player[plyr].classIcon:Enable()
+			else
+				VRO_MainFrame_Content_group[group].player[plyr].sign:Disable()
+				VRO_MainFrame_Content_group[group].player[plyr].classIcon:Disable()
+			end
+			VRO_MainFrame_Content_group[group].player[plyr].nameBox:EnableKeyboard(editable)
+			VRO_MainFrame_Content_group[group].player[plyr].nameBox:EnableMouse(editable)
         end
     end
 end
+VRO.SetEditable(false)
 
 function VRO.nilIsNil(val)
 	if val == "nil" then
@@ -658,13 +690,14 @@ function VRO.SwapByName(name1, name2)
     end
     
     if idx1 and idx2 then
-        SwapRaidSubgroup(idx1, idx2)
-    end
+		SwapRaidSubgroup(idx1, idx2)
+		if VRO_gui.selected == "Current" then VRO.loadSetInGUI("Current") end;
+	end
 end
 
 function VRO.MoveByName(pName, group)
     local raid = VRO.getCurrentRaid()
-    if raid[group].full then return end
+    if raid[group] and raid[group].full then return end
    
     for group,members in pairs(raid) do
         for member,datas in pairs(members) do
@@ -672,7 +705,10 @@ function VRO.MoveByName(pName, group)
         end
     end
     
-    if idx then SetRaidSubgroup(idx, group) end
+	if idx then 
+		SetRaidSubgroup(idx, group) 
+		if VRO_gui.selected == "Current" then VRO.loadSetInGUI("Current") end
+	end
 end
 
 function VRO.WypeGui()
@@ -732,7 +768,7 @@ function VRO.setSign(texture, signID)
 	end
 end
 
-function loadSetInGUI(set)
+function VRO.loadSetInGUI(set)
 	VRO.print(strfor("Loading Set [%s]",set))
 	VRO.WypeGui();
 	set = set or "Current";
@@ -740,7 +776,6 @@ function loadSetInGUI(set)
 	dLog(set, 3)
 	if set == "Current" then
 		VRO_gui.groups = VRO.getCurrentRaid()
-		VRO_MainFrame_Save:Show();
 	else
 		VRO_gui.groups = table.clone(VRO_SETS[set])
 		VRO_MainFrame_Save:Show();
@@ -748,6 +783,7 @@ function loadSetInGUI(set)
 
 	for group=1,8 do
 		for player=1,5 do
+			VRO.print(group.." "..player)
 			if (VRO_gui.groups[group] and VRO_gui.groups[group][player] and type(VRO_gui.groups[group][player]) == "table") then
 				if VRO_gui.groups[group][player].sign then
 					VRO.setSign(VRO_MainFrame_Content_group[group].player[player].sign.texture, VRO_gui.groups[group][player].sign)
@@ -764,6 +800,11 @@ function loadSetInGUI(set)
 
 				if VRO_gui.groups[group][player].role then
 					VRO_MainFrame_Content_group[group].player[player].role:SetText(VRO_gui.groups[group][player].role)
+				end
+			end
+			if set == "Current" then
+				if (VRO_MainFrame_Content_group[group].player[player].nameBox:GetText() and VRO_MainFrame_Content_group[group].player[player].nameBox:GetText() ~= "") then
+					VRO_MainFrame_Content_group[group].player[player]:RegisterForDrag("LeftButton");
 				end
 			end
 		end
