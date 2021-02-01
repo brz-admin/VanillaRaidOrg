@@ -197,8 +197,31 @@ VRO_MainFrame_Save.Button:SetScript("OnClick", function ()
 		UIDropDownMenu_SetSelectedName(VRO_MainFrame_Menu_SetsDD, VRO_MainFrame_Save.EditBox:GetText(), VRO_MainFrame_Save.EditBox:GetText())
 		VRO_MainFrame_Save.EditBox:SetText("")
 		VRO_MainFrame_Save.EditBox:ClearFocus()
+		VRO_MainFrame_Save.Button:Hide()
+		VRO_MainFrame_Save.EditBox:Hide()
+		VRO_MainFrame_Save.editButton:Show()
 	end
 end)
+
+VRO_MainFrame_Save.editButton = CreateFrame("Button", "VRO_MainFrame_Save_editButton", VRO_MainFrame_Save);
+VRO_MainFrame_Save.editButton:SetText("Apply Set");
+VRO_MainFrame_Save.editButton:SetFont("Fonts\\FRIZQT__.TTF", 8)
+VRO_MainFrame_Save.editButton:SetTextColor(1, 1, 1, 1);
+VRO_MainFrame_Save.editButton:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
+VRO_MainFrame_Save.editButton:SetBackdropColor(0,0,0,0.7);
+VRO_MainFrame_Save.editButton:SetAllPoints(VRO_MainFrame_Save)
+VRO_MainFrame_Save.editButton:SetText("EDIT")
+VRO_MainFrame_Save.editButton:SetFrameStrata("DIALOG")
+VRO_MainFrame_Save.editButton:RegisterForClicks("LeftButtonUp", "RightButtonUp");
+VRO_MainFrame_Save.editButton:SetScript("OnClick", function () 
+    this:Hide()
+    VRO_MainFrame_Save.Button:Show()
+    VRO_MainFrame_Save.EditBox:Show()
+    VRO.SetEditable(true);
+end)
+
+-- Button edit to show save stuff and make editable everything
+-- on current make player frames draggable to send swap player command
 
 VRO_MainFrame_Menu_SetsDD = CreateFrame("Frame", "VRO_MainFrame_Menu_SetsDD", VRO_MainFrame, "UIDropDownMenuTemplate")
 UIDropDownMenu_Initialize(VRO_MainFrame_Menu_SetsDD, function()
@@ -491,46 +514,46 @@ for group = 1, 8 do
 		VRO_MainFrame_Content_group[group].player[plyr].role:SetBackdropColor(0,0,0,0.25);
 		VRO_MainFrame_Content_group[group].player[plyr].role:SetFont("Fonts\\FRIZQT__.TTF", 8)
 		VRO_MainFrame_Content_group[group].player[plyr].role:SetScript("OnClick", function() 
-			gp = tonumber(string.sub(tostring(this:GetID()),1,1));
-			pl = tonumber(string.sub(tostring(this:GetID()),2,2));
-
-			if (not VRO_gui.groups[gp]) then
-				VRO_gui.groups[gp] = {}
-			end
-
-			if (not VRO_gui.groups[gp][pl]) then
-				VRO_gui.groups[gp][pl] = {}
-			end
-
-			if (VRO_gui.groups[gp][pl].role) then
-				if (VRO_gui.groups[gp][pl].role == "tank") then
-					this:SetText("melee")
-					VRO_gui.groups[gp][pl].role = "melee"
-				elseif (VRO_gui.groups[gp][pl].role == "melee") then
-					this:SetText("range")
-					VRO_gui.groups[gp][pl].role = "range"
-				elseif (VRO_gui.groups[gp][pl].role == "range") then
-					this:SetText("caster")
-					VRO_gui.groups[gp][pl].role = "caster"
-				elseif (VRO_gui.groups[gp][pl].role == "caster") then
-					this:SetText("heal")
-					VRO_gui.groups[gp][pl].role = "heal"
-				else
-					this:SetText("")
-					VRO_gui.groups[gp][pl].role = nil
-				end
-			else
-				VRO_gui.groups[gp][pl].role = "tank"
-				this:SetText("tank")
-			end
-
-			if VRO_gui.groups[gp][pl].name and VRO_Members[VRO_gui.groups[gp][pl].name] then
-				VRO_Members[VRO_gui.groups[gp][pl].name].role = VRO_gui.groups[gp][pl].role
-			end
-		end)
+		                			gp = tonumber(string.sub(tostring(this:GetID()),1,1));
+		                			pl = tonumber(string.sub(tostring(this:GetID()),2,2));
+		                
+		                			if (not VRO_gui.groups[gp]) then
+		                				VRO_gui.groups[gp] = {}
+		                			end
+		                
+		                			if (not VRO_gui.groups[gp][pl]) then
+		                				VRO_gui.groups[gp][pl] = {}
+		                			end
+		                
+		                			if (VRO_gui.groups[gp][pl].role) then
+		                				if (VRO_gui.groups[gp][pl].role == "tank") then
+		                					this:SetText("melee")
+		                					VRO_gui.groups[gp][pl].role = "melee"
+		                				elseif (VRO_gui.groups[gp][pl].role == "melee") then
+		                					this:SetText("range")
+		                					VRO_gui.groups[gp][pl].role = "range"
+		                				elseif (VRO_gui.groups[gp][pl].role == "range") then
+		                					this:SetText("caster")
+		                					VRO_gui.groups[gp][pl].role = "caster"
+		                				elseif (VRO_gui.groups[gp][pl].role == "caster") then
+		                					this:SetText("heal")
+		                					VRO_gui.groups[gp][pl].role = "heal"
+		                				else
+		                					this:SetText("")
+		                					VRO_gui.groups[gp][pl].role = nil
+		                				end
+		                			else
+		                				VRO_gui.groups[gp][pl].role = "tank"
+		                				this:SetText("tank")
+		                			end
+		                
+		                			if VRO_gui.groups[gp][pl].name and VRO_Members[VRO_gui.groups[gp][pl].name] then
+		                				VRO_Members[VRO_gui.groups[gp][pl].name].role = VRO_gui.groups[gp][pl].role
+		                			end
+		                		end)
 	end
 end
-
+VRO.SetEditable(false)
 ---------------------
 VRO_MainFrame:RegisterEvent("CHAT_MSG_ADDON");
 
@@ -549,7 +572,7 @@ end
 
 function VRO.HandleAddonMSG(sender, data)
 	-- check if we accept the call
-	if not VRO.PlayerIsPromoted(sender) or UnitName("Player") == sender then return end
+	if not VRO.PlayerIsPromoted(sender) or UnitName("Player") == sender or not IsRaidLeader() then return end
 	-- separate the type of command of it's datas
 	local split = strsplit(";;;", data)
 	local cmd = split[1]
@@ -557,6 +580,12 @@ function VRO.HandleAddonMSG(sender, data)
 
 	if cmd == "promote" then
 		PromoteToAssistant(datas)
+	elseif cmd == "swap" then
+	    dataSplit = strsplit(" ", datas)
+	    VRO.SwapByName(dataSplit[1],dataSplit[2])
+	elseif cmd == "move" then
+	    dataSplit = strsplit(" ", datas)
+	    VRO.MoveByName(dataSplit[1], dataSplit[2])
 	elseif cmd == "sendComp" then
 		-- We are gonna recieve the comp with one msg by player
 		-- message looks like this => COMPNAME:GROUP:PLAYERID:SIGN:CLASS:ROLE:NAME
@@ -587,6 +616,19 @@ function VRO.HandleAddonMSG(sender, data)
 	end
 end
 
+function VRO.SetEditable(editable)
+    editable = editable or true;
+
+    for group=1,8 do
+        for plyr=1,5 do
+            VRO_MainFrame_Content_group[group].player[plyr].role:SetEnabled(editable)
+            VRO_MainFrame_Content_group[group].player[plyr].sign:SetEnabled(editable)
+            VRO_MainFrame_Content_group[group].player[plyr].nameBox:SetEnabled(editable)
+            VRO_MainFrame_Content_group[group].player[plyr].classIcon:SetEnabled(editable)
+        end
+    end
+end
+
 function VRO.nilIsNil(val)
 	if val == "nil" then
 		return nil
@@ -603,6 +645,34 @@ function VRO.PlayerIsPromoted(name)
 		if (name and rank and rank > 0 ) then return true end
 	end
 	return false;
+end
+
+function VRO.SwapByName(name1, name2)
+    local idx1, idx2;
+    for group,members in pairs(VRO.getCurrentRaid()) do
+        for member,datas in pairs(members) do
+            if strlow(datas.name) == strlow(name1) then idx1 = datas.raidIndex
+            elseif strlow(datas.name) == strlow(name2) then idx2 = datas.raidIndex
+            end
+        end
+    end
+    
+    if idx1 and idx2 then
+        SwapRaidSubgroup(idx1, idx2)
+    end
+end
+
+function VRO.MoveByName(pName, group)
+    local raid = VRO.getCurrentRaid()
+    if raid[group].full then return end
+   
+    for group,members in pairs(raid) do
+        for member,datas in pairs(members) do
+            if strlow(datas.name) == strlow(pName) then idx = datas.raidIndex end
+        end
+    end
+    
+    if idx then SetRaidSubgroup(idx, group) end
 end
 
 function VRO.WypeGui()
@@ -961,32 +1031,37 @@ function VRO.SendComp(setName)
 				local name = datas.name or "nil"
 				local pDATA = setName..":"..group..":"..member..":"..sign..":"..class..":"..role..":"..name;
 				VRO.addonCom("sendComp",pDATA)
-				VRO.print(pDATA)
 			end
 		end
 	end
 end
 
-function VRO.GetHealForLoatheb()
-	local healers = {}
-	for groupe,members in pairs(VRO.getCurrentRaid()) do
-		for member,data in pairs(members) do
-			if type(data) == "table" then
-				if data.role == "heal" then
-					tinsert(healers, data.name)
-				end
-			end
-		end
+function VRO.GetHealForLoatheb(force)
+    force = force or false;
+	if not VRO.Healerstring or force then 
+    	local healers = {}
+	   	for groupe,members in pairs(VRO.getCurrentRaid()) do	
+	   	    for member,data in pairs(members) do
+	   			if type(data) == "table" then
+    				if data.role == "heal" then
+    				    tinsert(healers, data.name)
+	   				end
+	   			end
+	   		end
+	   	end
+	    
+	    VRO.Healerstring = ""
+    	for idx,name in pairs(healers) do
+    		VRO.Healerstringstring = VRO.Healerstring..name
+    		if healers[idx+1] then
+    			VRO.Healerstring = VRO.Healerstring.." => "
+    		end
+    	end
 	end
-
-	local string = ""
-	for idx,name in pairs(healers) do
-		string = string..name
-		if healers[idx+1] then
-			string = string.." => "
-		end
+	
+    if IsRaidLeader() or IsRaidOfficer() then
+    	SendChatMessage(VRO.Healerstring, "RAID_WARNING");
+  	else
+    	SendChatMessage(VRO.Healerstring, "RAID");
 	end
-
-	SendChatMessage(string, "RAID_WARNING");
-	SendChatMessage(string, "RAID");
 end
