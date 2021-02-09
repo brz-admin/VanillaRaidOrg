@@ -733,9 +733,11 @@ function VRO.SwapByName(name1, name2)
     local idx1, idx2;
     for group,members in pairs(VRO.getCurrentRaid()) do
         for member,datas in pairs(members) do
-            if strlow(datas.name) == strlow(name1) then idx1 = datas.raidIndex
-            elseif strlow(datas.name) == strlow(name2) then idx2 = datas.raidIndex
-            end
+			if type(datas) == "table" then
+				if strlow(datas.name) == strlow(name1) then idx1 = datas.raidIndex
+				elseif strlow(datas.name) == strlow(name2) then idx2 = datas.raidIndex
+				end
+			end
         end
     end
     
@@ -749,8 +751,12 @@ function VRO.MoveByName(pName, group)
     if raid[group] and raid[group].full then return end
    
     for group,members in pairs(raid) do
-        for member,datas in pairs(members) do
-            if strlow(datas.name) == strlow(pName) then idx = datas.raidIndex end
+		for member,datas in pairs(members) do
+			if type(datas) == "table" then
+				if datas.name then
+					if strlow(datas.name) == strlow(pName) then idx = datas.raidIndex end
+				end
+			end
         end
     end
     
@@ -1173,7 +1179,7 @@ function VRO.GetHealForLoatheb(force)
 	    
 	    VRO.Healerstring = ""
     	for idx,name in pairs(healers) do
-    		VRO.Healerstringstring = VRO.Healerstring..name
+    		VRO.Healerstring = VRO.Healerstring..name
     		if healers[idx+1] then
     			VRO.Healerstring = VRO.Healerstring.." => "
     		end
@@ -1192,8 +1198,8 @@ SLASH_VRO2 = "/vro"
 
 local function cmdHandle(msg)
 	strsplit(" ", msg)
-	local cmd = strsplit(" ", msg)[1]
-	local arg = strsplit(" ", msg)[2]
+	local cmd = strlow(strsplit(" ", msg)[1])
+	local arg = strlow(strsplit(" ", msg)[2])
 	if (cmd == "promote") then
 		PromoteToAssistant(arg)
 	elseif (cmd == "kick") then
