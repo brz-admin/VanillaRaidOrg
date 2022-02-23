@@ -1,0 +1,11 @@
+## Interface: 11200
+## Title: BlastRaidHelper
+## Version: 150
+## Notes: Multiple Useful Macros for Raids
+## SavedVariablesPerCharacter: BRH_TrackedSpells, BRH_CDTrackerConfig, BRH_spellsToTrack, BRH_SpellCastCount
+
+Libs\AceLibrary\AceLibrary.lua
+Libs\AceLocale-2.2\AceLocale-2.2.lua
+Libs\Babble-Spell-2.2\Babble-Spell-2.2.lua
+
+core.lua
