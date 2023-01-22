@@ -13,13 +13,13 @@ function BRH.print(msg)
 	DEFAULT_CHAT_FRAME:AddMessage("BRH: "..msg, 0.50,0.5,1)
 end
 
--- [ strsplit ]
+-- [ BRH.strsplit ]
 -- Splits a string using a delimiter.
 -- 'delimiter'  [string]        characters that will be interpreted as delimiter
 --                              characters (bytes) in the string.
 -- 'subject'    [string]        String to split.
 -- return:      [list]         s array.
-function strsplit(delimiter, subject)
+function BRH.strsplit(delimiter, subject)
 	if not subject then return nil end
 	local delimiter, fields = delimiter or ":", {}
 	local pattern = string.format("([^%s]+)", delimiter)
@@ -225,6 +225,7 @@ local LIPRota_CanTaunt = true;
 local LIPRota_Timer = nil;
 ---------- LOOT VACUME ----------
 local vacumeName = nil;
+local vacumeAttribs = {};
 ---------- PLSINFU ----------
 local askedInfu = nil;
 local infuUpTimer = nil;
@@ -374,11 +375,17 @@ function BRH.updateGUI()
 		for spell, datas in pairs(spells) do
 			if datas.tracked then
 				local up, max = 0, 0;
+				precedentpFrame = nil;
 				for player, cd in pairs(datas.onCD) do
 					if (BRH_CDTracker[spell].playersFrames[player] == nil) then
 						BRH_CDTracker[spell].playersFrames[player] = {}; 
 						BRH_CDTracker[spell].playersFrames[player].textZone = CreateFrame("Frame", "BRH_CDTracker_"..spell.."_playersFrames_"..player.."_textZone", BRH_CDTracker[spell].playersFrame);
-						BRH_CDTracker[spell].playersFrames[player].textZone:SetPoint("TOPLEFT", "BRH_CDTracker_"..spell.."_PlayerFrame", "TOPLEFT", 0, -(10*max))
+						if (precedentpFrame == nil) then
+							BRH_CDTracker[spell].playersFrames[player].textZone:SetPoint("TOPLEFT", "BRH_CDTracker_"..spell.."_PlayerFrame", "TOPLEFT", 0, 0)
+						else
+							BRH_CDTracker[spell].playersFrames[player].textZone:SetPoint("TOPLEFT", precedentpFrame, "BOTTOMLEFT", 0, 0)
+						end
+						precedentpFrame = BRH_CDTracker[spell].playersFrames[player].textZone;
 						BRH_CDTracker[spell].playersFrames[player].textZone:SetWidth(80)
 						BRH_CDTracker[spell].playersFrames[player].textZone:SetHeight(10)
 						BRH_CDTracker[spell].playersFrames[player].textZone:SetBackdrop({bgFile = "Interface/Tooltips/UI-Tooltip-Background", edgeSize = 5});
@@ -413,6 +420,7 @@ function BRH.updateGUI()
 	end
 end
 
+--[[
 function BRH.getMyTrackedSpells()
 	local playerName = UnitName("player")
 
@@ -487,7 +495,7 @@ function BRH.getMyTrackedSpells()
 		end
 	end
 end
-
+]]
 function BRH.setTrackedSpellOnCD(class, sender, spell, duration)
 	spell = strlow(spell);
 
@@ -529,7 +537,10 @@ end
 function BRH.setTrackedSpellUp(class, sender, spell)
 	spell = strlow(spell);
 
-	if (strlow(UnitName("Player")) == strlow(sender)) then
+	if (strlow(UnitName("Player")) == strlow(sender) 
+		and ((BRH_spellsToTrack["all"] ~= nil and BRH_spellsToTrack["all"][spell]["onCD"][sender] ~= nil and BRH_spellsToTrack["all"][spell]["onCD"][sender]) 
+		or (BRH_spellsToTrack[class] ~= nil and BRH_spellsToTrack[class][spell]["onCD"][sender] ~= nil and BRH_spellsToTrack[class][spell]["onCD"][sender]))) then
+
 		BRH.addonCom("trackedSpellUp", class..":"..spell);
 	end
 
@@ -553,7 +564,7 @@ local function handleTrackedSpellUsed(sender, datas)
 		return
 	end
 
-	local split = strsplit(":", datas)
+	local split = BRH.strsplit(":", datas)
 	local senderClass = split[1];
 	local spell = split[2];
 	local duration = split[3];
@@ -566,7 +577,7 @@ local function handleTrackedSpellUp(sender, datas)
 		return
 	end
 
-	local split = strsplit(":", datas)
+	local split = BRH.strsplit(":", datas)
 	local senderClass = split[1];
 	local spell = split[2];
 
@@ -610,6 +621,14 @@ This code hooks UseAction
 savedUseAction = UseAction
 
 newUseAction = function(actionindex, x, y)
+	local _, myclass = UnitClass("player")
+
+	if (strlow(myclass) == "priest") then
+		infuIfCan("");
+	elseif (strlow(myclass) == "paladin") then
+		BOPIfCan("");
+	end
+
 	-- macro, we don't track it here
 	if (GetActionText(actionindex) ~= nil) then 
 		savedUseAction(actionindex, x, y)   
@@ -635,7 +654,7 @@ newUseAction = function(actionindex, x, y)
 	local actionTexture = GetActionTexture(actionindex);
 	if (actionTexture) then
 		local playerName = UnitName("Player")
-		local _, myclass = UnitClass("player")
+		
 		myclass = strlow(myclass);
 		-- if it has count is a
 		if (IsConsumableAction(actionindex)) then myclass = "all" end;
@@ -652,6 +671,14 @@ This code hooks CastSpellByName()
 ]]
 savedCastSpellByName = CastSpellByName
 newCastSpellByName = function(name, onself)
+
+	local _, myclass = UnitClass("player")
+
+	if (strlow(myclass) == "priest") then
+		infuIfCan("");
+	elseif (strlow(myclass) == "paladin") then
+		BOPIfCan("");
+	end
 
 	-- pretty much the same as before
 	local spellSlot = getSpellSlot(name);
@@ -690,6 +717,14 @@ This code hooks UseInventoryItem()
 savedUseInventoryItem = UseInventoryItem
 newUseInventoryItem = function(slot)
 
+	local _, myclass = UnitClass("player")
+
+	if (strlow(myclass) == "priest") then
+		infuIfCan("");
+	elseif (strlow(myclass) == "paladin") then
+		BOPIfCan("");
+	end
+
 	-- Check for CD
 	local _, duration = GetInventoryItemCooldown("Player", slot)
 	if (duration > 0) then
@@ -716,28 +751,36 @@ This code hooks UseContainerItem()
 savedUseContainerItem = UseContainerItem
 newUseContainerItem = function(bag, slot, onSelf)
 
-		-- Check for CD
-		local _, duration = GetContainerItemCooldown(bag, slot)
-		if (duration > 0) then
-			-- action is on CD so ...
-			savedUseContainerItem(bag, slot, onSelf)   
-			return;
-		end
-	
-		local texture = GetContainerItemInfo(bag, slot);
-		if (texture) then
-			local playerName = UnitName("Player");
-			local myclass = "all";
-			BRH.setTrackedSpellOnCD(myclass, playerName, texture, "-1");
-		end
-	
-		savedUseContainerItem(bag, slot, onSelf) 
+	local _, myclass = UnitClass("player")
+
+	if (strlow(myclass) == "priest") then
+		infuIfCan("");
+	elseif (strlow(myclass) == "paladin") then
+		BOPIfCan("");
+	end
+
+	-- Check for CD
+	local _, duration = GetContainerItemCooldown(bag, slot)
+	if (duration > 0) then
+		-- action is on CD so ...
+		savedUseContainerItem(bag, slot, onSelf)   
+		return;
+	end
+
+	local texture = GetContainerItemInfo(bag, slot);
+	if (texture) then
+		local playerName = UnitName("Player");
+		local myclass = "all";
+		BRH.setTrackedSpellOnCD(myclass, playerName, texture, "-1");
+	end
+
+	savedUseContainerItem(bag, slot, onSelf) 
 
 end
 UseContainerItem = newUseContainerItem
 
 -- We save here our tickrate, then initialise nextTick.
-BRH_CDTracker.tickRate = 1;
+BRH_CDTracker.tickRate = 2;
 BRH_CDTracker.nextTick = GetTime() + BRH_CDTracker.tickRate;
 
 BRH_CDTracker.main:SetScript("OnUpdate", function() 
@@ -870,7 +913,7 @@ BRH_RaidInfo:RegisterEvent("CHAT_MSG_ADDON");
 BRH_RaidInfo:RegisterEvent("START_LOOT_ROLL");
 BRH_RaidInfo:RegisterEvent("CONFIRM_LOOT_ROLL");
 --------- SCRIPTS ---------
-local vacumeTick = GetTime() + 5;
+local vacumeTick = GetTime() + 60;
 BRH_RaidInfo:SetScript("OnUpdate", function() 
 
 	if (infuUpTimer ~= nil and infuUpTimer <= GetTime()) then
@@ -883,10 +926,13 @@ BRH_RaidInfo:SetScript("OnUpdate", function()
 		BOPUpTimer = nil;
 	end
 
-	if (IsRaidOfficer()) then
+	if (IsRaidLeader()) then
 		if (vacumeTick <= GetTime()) then
---			BRH.addonCom("vacume", vacumeName or "");
-			vacumeTick = GetTime() + 5;
+			BRH.addonCom("vacume", vacumeName or "");
+			vacumeTick = GetTime() + 60;
+			for itemId, playername in pairs(vacumeAttribs) do
+				BRH.addonCom("vacumeLootAttrib", itemId.." "..playername);
+			end
 		end
 	end
 
@@ -937,7 +983,13 @@ BRH_RaidInfo:SetScript("OnEvent", function()
 	elseif (event == "START_LOOT_ROLL") then
 		if (vacumeName ~= nil) then
 			local _, _, _, quality = GetLootRollItemInfo(arg1);
-			if (strlow(UnitName("Player")) == strlow(vacumeName) and quality < 5) then
+			local itemLink = GetLootRollItemLink(arg1);
+			local linkSplit = BRH.strsplit(":", itemLink);
+			local itemId = linkSplit[2];
+
+			-- If player has attrib or is vacume cleaner
+			if ((vacumeAttribs[itemId] ~= nil and strlow(vacumeAttribs[itemId]) == strlow(UnitName("Player"))) 
+				or (strlow(UnitName("Player")) == strlow(vacumeName) and quality < 5 and vacumeAttribs[itemId] == nil)) then
 				RollOnLoot(arg1, 1);
 			else
 				RollOnLoot(arg1, 0);
@@ -946,7 +998,11 @@ BRH_RaidInfo:SetScript("OnEvent", function()
 	elseif (event == "CONFIRM_LOOT_ROLL") then
 		if (vacumeName ~= nil) then
 			local _, _, _, quality = GetLootRollItemInfo(arg1);
-			if (strlow(UnitName("Player")) == strlow(vacumeName) and quality < 5) then
+			local itemLink = GetLootRollItemLink(arg1);
+			local linkSplit = BRH.strsplit(":", itemLink);
+			local itemId = linkSplit[2];
+			if ((vacumeAttribs[itemId] ~= nil and strlow(vacumeAttribs[itemId]) == strlow(UnitName("Player"))) 
+				or (strlow(UnitName("Player")) == strlow(vacumeName) and quality < 5 and vacumeAttribs[itemId] == nil)) then
 				ConfirmLootRoll(arg1, 1)
 			end
 		end
@@ -964,12 +1020,20 @@ function BRH.msgToAll(msg)
 	BRH.addonCom("msgToAll", msg);
 end
 
+function BRH.printAttribs()
+	for itemId, player in pairs(vacumeAttribs) do
+		BRH.print(itemId.." attrib to "..player);
+	end
+end
+
 outDated = {}
 
 function BRH.HandleAddonMSG(sender, data)
-	local split = strsplit(";;;", data)
+	local split = BRH.strsplit(";;;", data)
 	local cmd = split[1]
 	local datas = split[2]
+
+	BRH.print(data);
 
 	if (cmd == "LIPROTA" and UnitName("Player") ~= sender) then
 		LIPRota_CanTaunt = false;
@@ -1014,6 +1078,9 @@ function BRH.HandleAddonMSG(sender, data)
 		else
 			vacumeName = datas;
 		end
+	elseif (cmd == "vacumeLootAttrib") then
+		local dataSplit = BRH.strsplit(" ", datas);
+		vacumeAttribs[dataSplit[1]] = dataSplit[2];
 	elseif (cmd == "stopvacume") then
 		vacumeName = nil
 	elseif (cmd == "checkEngineer") then
@@ -1038,9 +1105,9 @@ function BRH.PlayerIsPromoted(name)
 end
 
 local function SCDcmdHandle(msg)
-	strsplit(" ", msg)
-	local cmd = strsplit(" ", msg)[1]
-	local arg = strsplit(" ", msg)[2]
+	BRH.strsplit(" ", msg)
+	local cmd = BRH.strsplit(" ", msg)[1]
+	local arg = BRH.strsplit(" ", msg)[2]
 
 	if cmd then
 		if (strlow(cmd) == "start") then
@@ -1066,9 +1133,9 @@ local function SCDcmdHandle(msg)
 end
 
 local function BRHcmdHandle(msg)
-	strsplit(" ", msg)
-	local cmd = strsplit(" ", msg)[1]
-	local arg = strsplit(" ", msg)[2]
+	BRH.strsplit(" ", msg)
+	local cmd = BRH.strsplit(" ", msg)[1]
+	local arg = BRH.strsplit(" ", msg)[2]
 	if cmd then
 		if (IsRaidOfficer() or IsRaidLeader()) then
 			if (strlow(cmd) == "check") then
@@ -1090,6 +1157,9 @@ local function BRHcmdHandle(msg)
 				BRH.addonCom(cmd, arg);
 				SetLootMethod("group", 1);
 				BRH.print(arg.." est maintenant l'aspirateur à loots !")
+			elseif (strlow(cmd) == "vacumelootattrib") then
+				vacumeAttribs[arg] = BRH.strsplit(" ", msg)[3];
+				BRH.addonCom("vacumeLootAttrib", arg.." "..vacumeAttribs[arg]);
 			elseif (strlow(cmd) == "stopvacume") then
 				vacumeName = nil;
 				BRH.addonCom(cmd, "");
@@ -1227,7 +1297,7 @@ end
 
 local function CDTrackerHandle(msg)
 	
-	local split = strsplit(" ", msg)
+	local split = BRH.strsplit(" ", msg)
 	local cmd = split[1]
 	tremove(split, 1)
 	local arg = table.concat(split, " ");
@@ -1238,7 +1308,7 @@ local function CDTrackerHandle(msg)
 			return
 		end
 
-		local split2 = strsplit(" ", arg)
+		local split2 = BRH.strsplit(" ", arg)
 		local class = split2[1]
 		tremove(split2, 1)
 		local spellName = table.concat(split2, " ");
